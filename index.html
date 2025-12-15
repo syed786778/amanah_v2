@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amanah - Trusted Photo Sharing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        /* Modern gradient backgrounds */
+        .hero-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Smooth animations */
+        .fade-in {
+            animation: fadeIn 0.6s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .slide-up {
+            animation: slideUp 0.5s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Modern button */
+        .btn-modern {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-modern::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .btn-modern:hover::before {
+            left: 100%;
+        }
+        
+        /* Progress steps */
+        .step-indicator {
+            position: relative;
+        }
+        
+        .step-indicator::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 100%;
+            width: 100%;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-50%);
+        }
+        
+        .step-indicator:last-child::after {
+            display: none;
+        }
+        
+        /* Security shield animation */
+        @keyframes pulse-shield {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+        }
+        
+        .shield-pulse {
+            animation: pulse-shield 2s ease-in-out infinite;
+        }
+        
+        /* Canvas security */
+        canvas {
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+            pointer-events: none;
+        }
+        
+        /* Screenshot overlay */
+        .screenshot-overlay {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        
+        .screenshot-overlay.active {
+            display: flex;
+        }
+        
+        /* Disable text selection globally for security */
+        body {
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        /* Enable text selection for inputs */
+        input, textarea {
+            -webkit-user-select: text;
+            user-select: text;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen text-white" oncopy="return false;" oncut="return false;">
+    
+    <!-- Screenshot Detection Overlay -->
+    <div id="screenshot-overlay" class="screenshot-overlay">
+        <div class="text-center space-y-4">
+            <div class="w-32 h-32 mx-auto bg-red-500/20 rounded-full flex items-center justify-center">
+                <svg class="w-16 h-16 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <h2 class="text-3xl font-bold">Access Denied</h2>
+            <p class="text-gray-300">Screenshot attempt detected</p>
+            <p class="text-sm text-gray-400">This incident has been logged</p>
+        </div>
+    </div>
+
+    <div id="app"></div>
+
+    <script>
+        const SUPABASE_URL = 'https://imiljivxosyrcosznklh.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltaWxqaXZ4b3N5cmNvc3pua2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxMTIwOTcsImV4cCI6MjA3OTY4ODA5N30.TOgeuC3-RdG2ywIxDz2NWRhLHI4gxTkG4pilaZBqhso';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // Security state
+        let visibilityChangeCount = 0;
+        let lastVisibilityChange = 0;
+        let protectionActive = false;
+        
+        // App state
+        let state = {
+            view: 'home',
+            step: 1,
+            currentAlbum: null,
+            uploaderInfo: { name: '', email: '' },
+            photos: [],
+            shareLink: '',
+            otp: '',
+            otpExpiry: null,
+            viewerOtp: '',
+            albumIdToView: '',
+            isVerified: false,
+            loading: false,
+            photoIndex: 0,
+            manageEmail: '',
+            termsAccepted: false,
+            screenshotAttempts: 0
+        };
+        
+        // Utility functions
+        function genOTP() { return Math.floor(100000 + Math.random() * 900000).toString(); }
+        function genAlbumId() { return 'album_' + Math.random().toString(36).substr(2, 9); }
+        function formatTime(expiry) {
+            const remaining = expiry - Date.now();
+            const hours = Math.floor(remaining / 3600000);
+            const minutes = Math.floor((remaining % 3600000) / 60000);
+            return `${hours}h ${minutes}m`;
+        }
+        
+        function nav(view) {
+            protectionActive = false;
+            visibilityChangeCount = 0;
+            state.view = view;
+            state.step = 1;
+            if (view === 'home') {
+                state.photos = [];
+                state.uploaderInfo = { name: '', email: '' };
+                state.currentAlbum = null;
+                state.screenshotAttempts = 0;
+                state.photoIndex = 0;
+            }
+            render();
+        }
+        
+        // Security functions
+        function handleScreenshotAttempt() {
+            state.screenshotAttempts++;
+            const overlay = document.getElementById('screenshot-overlay');
+            if (overlay) {
+                overlay.classList.add('active');
+                scrambleCanvas();
+                
+                setTimeout(() => {
+                    nav('home');
+                    alert('Access revoked due to security violation');
+                }, 2000);
+            }
+        }
+        
+        function scrambleCanvas() {
+            const canvas = document.getElementById('secure-canvas');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#ef4444';
+            ctx.font = 'bold 48px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText('ACCESS DENIED', canvas.width / 2, canvas.height / 2);
+        }
+        
+        function setupProtection() {
+            if (protectionActive) return;
+            protectionActive = true;
+            
+            // Context menu block
+            document.addEventListener('contextmenu', e => {
+                e.preventDefault();
+                handleScreenshotAttempt();
+            });
+            
+            // Keyboard shortcuts block
+            document.addEventListener('keydown', e => {
+                if (e.key === 'PrintScreen' || 
+                    (e.metaKey && e.shiftKey && ['3','4','5'].includes(e.key)) ||
+                    (e.ctrlKey && ['p','P'].includes(e.key))) {
+                    e.preventDefault();
+                    handleScreenshotAttempt();
+                }
+            });
+            
+            // Visibility change detection
+            document.addEventListener('visibilitychange', () => {
+                const now = Date.now();
+                if (document.visibilityState === 'hidden') {
+                    if (now - lastVisibilityChange < 1500) {
+                        visibilityChangeCount++;
+                        if (visibilityChangeCount >= 2) {
+                            handleScreenshotAttempt();
+                        }
+                    }
+                    lastVisibilityChange = now;
+                }
+            });
+            
+            // Blur detection
+            let blurTime = 0;
+            window.addEventListener('blur', () => blurTime = Date.now());
+            window.addEventListener('focus', () => {
+                if (blurTime && Date.now() - blurTime < 500) {
+                    handleScreenshotAttempt();
+                }
+            });
+        }
+        
+        // Canvas drawing
+        function drawPhotoOnCanvas(photo) {
+            const canvas = document.getElementById('secure-canvas');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                
+                // Draw image
+                ctx.drawImage(img, 0, 0);
+                
+                // Add watermark
+                ctx.save();
+                ctx.globalAlpha = 0.2;
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 60px Inter';
+                ctx.textAlign = 'center';
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate(-45 * Math.PI / 180);
+                ctx.fillText('AMANAH SECURED', 0, 0);
+                ctx.restore();
+            };
+            
+            img.src = photo;
+        }
+        
+        // File handling
+        function handleFiles(e) {
+            const files = Array.from(e.target.files).slice(0, 10);
+            Promise.all(files.map(file => new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result);
+                reader.readAsDataURL(file);
+            }))).then(photos => {
+                state.photos = [...state.photos, ...photos].slice(0, 10);
+                render();
+            });
+        }
+        
+        // Album operations
+        async function createAlbum() {
+            if (!state.termsAccepted || !state.uploaderInfo.name || !state.uploaderInfo.email || !state.photos.length) {
+                alert('Please complete all required fields');
+                return;
+            }
+            
+            state.loading = true;
+            render();
+            
+            try {
+                const albumId = genAlbumId();
+                const otp = genOTP();
+                const expiry = Date.now() + 86400000;
+                
+                const { data: album } = await supabase
+                    .from('albums')
+                    .insert({
+                        id: albumId,
+                        name: state.uploaderInfo.name,
+                        email: state.uploaderInfo.email.toLowerCase().trim(),
+                        otp: otp,
+                        otp_expiry: expiry,
+                        created_at: Date.now()
+                    })
+                    .select()
+                    .single();
+                
+                await supabase.from('photos').insert(
+                    state.photos.map(photo => ({ album_id: albumId, photo_data: photo }))
+                );
+                
+                const { data: photos } = await supabase
+                    .from('photos')
+                    .select('*')
+                    .eq('album_id', albumId)
+                    .order('created_at');
+                
+                state.currentAlbum = { ...album, photos: photos.map(p => p.photo_data) };
+                state.otp = otp;
+                state.otpExpiry = expiry;
+                state.shareLink = `${location.origin}${location.pathname}?album=${albumId}`;
+                state.view = 'success';
+                state.loading = false;
+                render();
+            } catch (error) {
+                alert('Failed to create album: ' + error.message);
+                state.loading = false;
+                render();
+            }
+        }
+        
+        async function verifyAccess() {
+            if (!state.albumIdToView || !state.viewerOtp) {
+                alert('Please enter Album ID and OTP');
+                return;
+            }
+            
+            state.loading = true;
+            render();
+            
+            try {
+                const { data: album } = await supabase
+                    .from('albums')
+                    .select('*')
+                    .eq('id', state.albumIdToView)
+                    .single();
+                
+                if (!album) {
+                    alert('Album not found');
+                    state.loading = false;
+                    render();
+                    return;
+                }
+                
+                if (Date.now() > album.otp_expiry) {
+                    alert('OTP has expired');
+                    state.loading = false;
+                    render();
+                    return;
+                }
+                
+                if (album.otp !== state.viewerOtp) {
+                    alert('Invalid OTP');
+                    state.loading = false;
+                    render();
+                    return;
+                }
+                
+                const { data: photos } = await supabase
+                    .from('photos')
+                    .select('*')
+                    .eq('album_id', state.albumIdToView)
+                    .order('created_at');
+                
+                state.currentAlbum = { ...album, photos: photos.map(p => p.photo_data) };
+                state.isVerified = true;
+                state.view = 'viewer';
+                state.loading = false;
+                render();
+                setTimeout(setupProtection, 100);
+            } catch (error) {
+                alert('Verification failed: ' + error.message);
+                state.loading = false;
+                render();
+            }
+        }
+        
+        async function manageAlbum() {
+            if (!state.manageEmail) {
+                alert('Please enter your email');
+                return;
+            }
+            
+            state.loading = true;
+            render();
+            
+            try {
+                const { data: albums } = await supabase
+                    .from('albums')
+                    .select('*')
+                    .eq('email', state.manageEmail.toLowerCase().trim());
+                
+                if (!albums || !albums.length) {
+                    alert('No albums found');
+                    state.loading = false;
+                    render();
+                    return;
+                }
+                
+                const album = albums[0];
+                const { data: photos } = await supabase
+                    .from('photos')
+                    .select('*')
+                    .eq('album_id', album.id)
+                    .order('created_at');
+                
+                state.currentAlbum = { ...album, photos: photos.map(p => p.photo_data) };
+                state.otp = album.otp;
+                state.otpExpiry = album.otp_expiry;
+                state.shareLink = `${location.origin}${location.pathname}?album=${album.id}`;
+                state.view = 'manage';
+                state.loading = false;
+                render();
+            } catch (error) {
+                alert('Failed to load album: ' + error.message);
+                state.loading = false;
+                render();
+            }
+        }
+        
+        async function deleteAlbum() {
+            if (!confirm('Delete entire album? This cannot be undone.')) return;
+            
+            try {
+                await supabase.from('albums').delete().eq('id', state.currentAlbum.id);
+                alert('Album deleted successfully');
+                nav('home');
+            } catch (error) {
+                alert('Failed to delete album: ' + error.message);
+            }
+        }
+        
+        async function regenerateOTP() {
+            try {
+                const newOTP = genOTP();
+                const newExpiry = Date.now() + 86400000;
+                
+                await supabase
+                    .from('albums')
+                    .update({ otp: newOTP, otp_expiry: newExpiry })
+                    .eq('id', state.currentAlbum.id);
+                
+                state.otp = newOTP;
+                state.otpExpiry = newExpiry;
+                alert('New OTP generated successfully');
+                render();
+            } catch (error) {
+                alert('Failed to regenerate OTP');
+            }
+        }
+        
+        // Render functions
+        function renderHome() {
+            return `
+                <div class="fade-in">
+                    <!-- Navigation -->
+                    <nav class="glass-effect fixed top-0 left-0 right-0 z-50">
+                        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center shield-pulse">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                                    </svg>
+                                </div>
+                                <span class="text-2xl font-bold">Amanah</span>
+                            </div>
+                            <button onclick="nav('terms')" class="text-sm text-purple-300 hover:text-white transition">Terms</button>
+                        </div>
+                    </nav>
+
+                    <!-- Hero Section -->
+                    <div class="pt-32 pb-20 px-6">
+                        <div class="max-w-4xl mx-auto text-center space-y-8">
+                            <div class="inline-block">
+                                <div class="w-24 h-24 mx-auto bg-gradient-to-br from-purple-400 to-pink-500 rounded-3xl flex items-center justify-center mb-6 shield-pulse">
+                                    <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            
+                            <h1 class="text-6xl md:text-7xl font-bold leading-tight">
+                                Share Photos with
+                                <span class="bg-gradient-to-r from-purple-400 to-pink-500 text-transparent bg-clip-text"> Complete Trust</span>
+                            </h1>
+                            
+                            <p class="text-xl text-gray-300 max-w-2xl mx-auto leading-relaxed">
+                                Secure matrimonial photo sharing with OTP protection, screenshot prevention, and full control over who sees your photos.
+                            </p>
+                            
+                            <!-- CTA Buttons -->
+                            <div class="flex flex-col sm:flex-row gap-4 justify-center pt-8">
+                                <button onclick="nav('upload')" class="btn-modern px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl font-semibold text-lg hover:shadow-2xl hover:scale-105 transition-all">
+                                    <span class="flex items-center justify-center space-x-2">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                                        </svg>
+                                        <span>Share Photos</span>
+                                    </span>
+                                </button>
+                                
+                                <button onclick="nav('access')" class="btn-modern px-8 py-4 glass-card rounded-2xl font-semibold text-lg hover:bg-white/10 transition-all">
+                                    <span class="flex items-center justify-center space-x-2">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                        </svg>
+                                        <span>View Album</span>
+                                    </span>
+                                </button>
+                            </div>
+                            
+                            <button onclick="nav('manage-access')" class="text-purple-300 hover:text-white text-sm transition mt-4">
+                                Manage your existing album →
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Features Grid -->
+                    <div class="px-6 pb-20">
+                        <div class="max-w-6xl mx-auto grid md:grid-cols-3 gap-6">
+                            ${renderFeatureCard('Shield', 'OTP Protected', 'Every album is secured with a time-limited one-time passcode', 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z')}
+                            ${renderFeatureCard('Eye Off', 'Screenshot Prevention', 'Advanced detection blocks unauthorized captures', 'M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21')}
+                            ${renderFeatureCard('Settings', 'Full Control', 'Revoke access, regenerate OTP, or delete anytime', 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z')}
+                        </div>
+                    </div>
+
+                    <!-- Trust Section -->
+                    <div class="px-6 pb-20">
+                        <div class="max-w-4xl mx-auto glass-card rounded-3xl p-12 text-center">
+                            <div class="w-16 h-16 mx-auto bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl flex items-center justify-center mb-6">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                            </div>
+                            <h2 class="text-3xl font-bold mb-4">Built on Trust</h2>
+                            <p class="text-gray-300 leading-relaxed">
+                                Amanah means "trust" in Arabic. Created to solve the real problem of uncontrolled photo sharing in matrimonial contexts. Your photos, your control, your peace of mind.
+                            </p>
+                        </div>
+                    </div>
+
+                    ${renderFooter()}
+                </div>
+            `;
+        }
+        
+        function renderFeatureCard(icon, title, description, svgPath) {
+            return `
+                <div class="glass-card rounded-2xl p-8 hover:bg-white/10 transition-all group">
+                    <div class="w-14 h-14 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${svgPath}"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">${title}</h3>
+                    <p class="text-gray-400 leading-relaxed">${description}</p>
+                </div>
+            `;
+        }
+        
+        function renderUpload() {
+            return `
+                <div class="slide-up min-h-screen pt-24 px-6 pb-20">
+                    <div class="max-w-2xl mx-auto">
+                        <!-- Back button -->
+                        <button onclick="nav('home')" class="mb-8 text-purple-300 hover:text-white transition flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                            </svg>
+                            <span>Back</span>
+                        </button>
+
+                        <!-- Progress Steps -->
+                        <div class="flex items-center justify-center mb-12 space-x-4">
+                            ${[1,2,3].map(s => `
+                                <div class="flex items-center step-indicator">
+                                    <div class="w-12 h-12 rounded-full ${state.step >= s ? 'bg-gradient-to-br from-purple-400 to-pink-500' : 'bg-white/10'} flex items-center justify-center font-bold">
+                                        ${s}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <div class="glass-card rounded-3xl p-10">
+                            ${state.step === 1 ? `
+                                <h2 class="text-3xl font-bold mb-8 text-center">Your Information</h2>
+                                <div class="space-y-6">
+                                    <div>
+                                        <label class="block text-sm font-medium mb-2 text-gray-300">Your Name</label>
+                                        <input type="text" value="${state.uploaderInfo.name}" oninput="state.uploaderInfo.name=this.value" placeholder="Enter your name" class="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl focus:border-purple-400 focus:outline-none transition">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium mb-2 text-gray-300">Your Email</label>
+                                        <input type="email" value="${state.uploaderInfo.email}" oninput="state.uploaderInfo.email=this.value" placeholder="your@email.com" class="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl focus:border-purple-400 focus:outline-none transition">
+                                    </div>
+                                    <button onclick="state.step=2;render()" class="w-full btn-modern py-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-semibold hover:shadow-2xl transition-all ${!state.uploaderInfo.name || !state.uploaderInfo.email ? 'opacity-50 cursor-not-allowed' : ''}" ${!state.uploaderInfo.name || !state.uploaderInfo.email ? 'disabled' : ''}>
+                                        Continue
+                                    </button>
+                                </div>
+                            ` : state.step === 2 ? `
+                                <h2 class="text-3xl font-bold mb-8 text-center">Upload Photos</h2>
+                                <div class="space-y-6">
+                                    <label class="block">
+                                        <div class="border-2 border-dashed border-white/20 rounded-2xl p-12 text-center hover:border-purple-400 transition cursor-pointer">
+                                            <svg class="w-16 h-16 mx-auto mb-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                            </svg>
+                                            <p class="text-lg font-medium mb-2">Click to upload photos</p>
+                                            <p class="text-sm text-gray-400">Maximum 10 photos</p>
+                                            <input type="file" multiple accept="image/*" onchange="handleFiles(event)" class="hidden">
+                                        </div>
+                                    </label>
+                                    
+                                    ${state.photos.length > 0 ? `
+                                        <div class="grid grid-cols-3 gap-4">
+                                            ${state.photos.map((p, i) => `
+                                                <div class="relative group">
+                                                    <img src="${p}" class="w-full h-32 object-cover rounded-xl">
+                                                    <button onclick="state.photos.splice(${i},1);render()" class="absolute top-2 right-2 w-8 h-8 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    ` : ''}
+                                    
+                                    <div class="flex space-x-4">
+                                        <button onclick="state.step=1;render()" class="flex-1 py-4 glass-card rounded-xl font-semibold hover:bg-white/10 transition">
+                                            Back
+                                        </button>
+                                        <button onclick="state.step=3;render()" class="flex-1 btn-modern py-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-semibold hover:shadow-2xl transition-all ${state.photos.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}" ${state.photos.length === 0 ? 'disabled' : ''}>
+                                            Continue
+                                        </button>
+                                    </div>
+                                </div>
+                            ` : `
+                                <h2 class="text-3xl font-bold mb-8 text-center">Review & Confirm</h2>
+                                <div class="space-y-6">
+                                    <div class="glass-effect rounded-xl p-6 space-y-3">
+                                        <p class="text-gray-400">Name: <span class="text-white font-medium">${state.uploaderInfo.name}</span></p>
+                                        <p class="text-gray-400">Email: <span class="text-white font-medium">${state.uploaderInfo.email}</span></p>
+                                        <p class="text-gray-400">Photos: <span class="text-white font-medium">${state.photos.length}</span></p>
+                                    </div>
+                                    
+                                    <label class="flex items-start space-x-3 cursor-pointer">
+                                        <input type="checkbox" onchange="state.termsAccepted=this.checked;render()" ${state.termsAccepted ? 'checked' : ''} class="mt-1 w-5 h-5 rounded border-white/20">
+                                        <span class="text-sm text-gray-300">I agree to the <button onclick="nav('terms')" class="text-purple-400 hover:underline">Terms & Conditions</button> and confirm I have permission to share these photos</span>
+                                    </label>
+                                    
+                                    <div class="flex space-x-4">
+                                        <button onclick="state.step=2;render()" class="flex-1 py-4 glass-card rounded-xl font-semibold hover:bg-white/10 transition">
+                                            Back
+                                        </button>
+                                        <button onclick="createAlbum()" class="flex-1 btn-modern py-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-semibold hover:shadow-2xl transition-all ${!state.termsAccepted ? 'opacity-50 cursor-not-allowed' : ''}" ${!state.termsAccepted ? 'disabled' : ''}>
+                                            ${state.loading ? 'Creating...' : 'Create Album'}
+                                        </button>
+                                    </div>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderSuccess() {
+            return `
+                <div class="slide-up min-h-screen pt-24 px-6 pb-20">
+                    <div class="max-w-2xl mx-auto text-center">
+                        <div class="w-20 h-20 mx-auto bg-gradient-to-br from-green-400 to-emerald-500 rounded-3xl flex items-center justify-center mb-8">
+                            <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </div>
+                        
+                        <h2 class="text-4xl font-bold mb-4">Album Created!</h2>
+                        <p class="text-gray-300 mb-12">Share these details with your intended recipient</p>
+                        
+                        <div class="glass-card rounded-3xl p-8 space-y-6 mb-8">
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-2">Album ID</label>
+                                <div class="flex space-x-2">
+                                    <input type="text" value="${state.currentAlbum.id}" readonly class="flex-1 px-4 py-3 bg-white/5 rounded-xl text-center font-mono">
+                                    <button onclick="navigator.clipboard.writeText('${state.currentAlbum.id}');alert('Copied!')" class="px-6 bg-purple-500 rounded-xl hover:bg-purple-600 transition">
+                                        Copy
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-2">OTP (Valid for 24h)</label>
+                                <div class="flex space-x-2">
+                                    <input type="text" value="${state.otp}" readonly class="flex-1 px-4 py-3 bg-white/5 rounded-xl text-center font-mono text-2xl">
+                                    <button onclick="navigator.clipboard.writeText('${state.otp}');alert('Copied!')" class="px-6 bg-purple-500 rounded-xl hover:bg-purple-600 transition">
+                                        Copy
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-2">Share Link</label>
+                                <div class="flex space-x-2">
+                                    <input type="text" value="${state.shareLink}" readonly class="flex-1 px-4 py-3 bg-white/5 rounded-xl text-sm">
+                                    <button onclick="navigator.clipboard.writeText('${state.shareLink}');alert('Copied!')" class="px-6 bg-purple-500 rounded-xl hover:bg-purple-600 transition">
+                                        Copy
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <button onclick="window.open('https://wa.me/?text=' + encodeURIComponent('View my photos securely: ${state.shareLink}\\n\\nOTP: ${state.otp}'))" class="w-full py-4 bg-green-500 rounded-xl font-semibold hover:bg-green-600 transition flex items-center justify-center space-x-2">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                                </svg>
+                                <span>Share via WhatsApp</span>
+                            </button>
+                        </div>
+                        
+                        <div class="flex space-x-4">
+                            <button onclick="nav('home')" class="flex-1 py-4 glass-card rounded-xl font-semibold hover:bg-white/10 transition">
+                                Create Another
+                            </button>
+                            <button onclick="state.view='manage';render()" class="flex-1 py-4 bg-purple-500 rounded-xl font-semibold hover:bg-purple-600 transition">
+                                Manage Album
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderAccess() {
+            return `
+                <div class="slide-up min-h-screen pt-24 px-6 pb-20">
+                    <div class="max-w-md mx-auto">
+                        <button onclick="nav('home')" class="mb-8 text-purple-300 hover:text-white transition flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                            </svg>
+                            <span>Back</span>
+                        </button>
+                        
+                        <div class="glass-card rounded-3xl p-10">
+                            <div class="w-16 h-16 mx-auto bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl flex items-center justify-center mb-8">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                </svg>
+                            </div>
+                            
+                            <h2 class="text-3xl font-bold mb-8 text-center">Access Album</h2>
+                            
+                            <div class="space-y-6">
+                                <div>
+                                    <label class="block text-sm font-medium mb-2 text-gray-300">Album ID</label>
+                                    <input type="text" value="${state.albumIdToView}" oninput="state.albumIdToView=this.value.trim()" placeholder="album_xxxxx" class="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl focus:border-purple-400 focus:outline-none transition font-mono">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium mb-2 text-gray-300">OTP</label>
+                                    <input type="text" value="${state.viewerOtp}" oninput="state.viewerOtp=this.value.trim()" placeholder="000000" maxlength="6" class="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl focus:border-purple-400 focus:outline-none transition text-center text-2xl font-mono tracking-widest">
+                                </div>
+                                
+                                <div class="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+                                    <p class="text-sm text-red-300">⚠️ Screenshot protection is active. Unauthorized capture will result in immediate logout.</p>
+                                </div>
+                                
+                                <button onclick="verifyAccess()" class="w-full btn-modern py-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-semibold hover:shadow-2xl transition-all ${!state.albumIdToView || !state.viewerOtp ? 'opacity-50 cursor-not-allowed' : ''}" ${!state.albumIdToView || !state.viewerOtp ? 'disabled' : ''}>
+                                    ${state.loading ? 'Verifying...' : 'View Photos'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderViewer() {
+            if (!state.currentAlbum) return '';
+            
+            setTimeout(() => drawPhotoOnCanvas(state.currentAlbum.photos[state.photoIndex]), 100);
+            
+            return `
+                <div class="min-h-screen pt-24 px-6 pb-20">
+                    <div class="max-w-4xl mx-auto">
+                        <div class="text-center mb-8">
+                            <h2 class="text-3xl font-bold mb-2">${state.currentAlbum.name}'s Album</h2>
+                            <p class="text-gray-400">Photo ${state.photoIndex + 1} of ${state.currentAlbum.photos.length}</p>
+                        </div>
+                        
+                        <div class="glass-card rounded-3xl p-8 mb-8">
+                            <div id="viewer-content" class="relative">
+                                <canvas id="secure-canvas" class="w-full rounded-2xl shadow-2xl"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-center space-x-4">
+                            <button onclick="if(state.photoIndex>0){state.photoIndex--;render()}" class="p-4 glass-card rounded-xl hover:bg-white/10 transition ${state.photoIndex === 0 ? 'opacity-50' : ''}" ${state.photoIndex === 0 ? 'disabled' : ''}>
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                                </svg>
+                            </button>
+                            
+                            <button onclick="if(confirm('Exit album?')){nav('home')}" class="px-8 py-4 bg-red-500 rounded-xl font-semibold hover:bg-red-600 transition">
+                                Exit
+                            </button>
+                            
+                            <button onclick="if(state.photoIndex<state.currentAlbum.photos.length-1){state.photoIndex++;render()}" class="p-4 glass-card rounded-xl hover:bg-white/10 transition ${state.photoIndex === state.currentAlbum.photos.length - 1 ? 'opacity-50' : ''}" ${state.photoIndex === state.currentAlbum.photos.length - 1 ? 'disabled' : ''}>
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderManageAccess() {
+            return `
+                <div class="slide-up min-h-screen pt-24 px-6 pb-20">
+                    <div class="max-w-md mx-auto">
+                        <button onclick="nav('home')" class="mb-8 text-purple-300 hover:text-white transition flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                            </svg>
+                            <span>Back</span>
+                        </button>
+                        
+                        <div class="glass-card rounded-3xl p-10">
+                            <div class="w-16 h-16 mx-auto bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl flex items-center justify-center mb-8">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                </svg>
+                            </div>
+                            
+                            <h2 class="text-3xl font-bold mb-8 text-center">Manage Album</h2>
+                            
+                            <div class="space-y-6">
+                                <div>
+                                    <label class="block text-sm font-medium mb-2 text-gray-300">Your Email</label>
+                                    <input type="email" value="${state.manageEmail}" oninput="state.manageEmail=this.value" placeholder="your@email.com" class="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl focus:border-purple-400 focus:outline-none transition">
+                                </div>
+                                
+                                <button onclick="manageAlbum()" class="w-full btn-modern py-4 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl font-semibold hover:shadow-2xl transition-all ${!state.manageEmail ? 'opacity-50 cursor-not-allowed' : ''}" ${!state.manageEmail ? 'disabled' : ''}>
+                                    ${state.loading ? 'Loading...' : 'Access Management'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderManage() {
+            if (!state.currentAlbum) return '';
+            const isExpired = Date.now() > state.otpExpiry;
+            
+            return `
+                <div class="slide-up min-h-screen pt-24 px-6 pb-20">
+                    <div class="max-w-4xl mx-auto">
+                        <button onclick="nav('home')" class="mb-8 text-purple-300 hover:text-white transition flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                            </svg>
+                            <span>Back</span>
+                        </button>
+                        
+                        <h2 class="text-3xl font-bold mb-8">Album Management</h2>
+                        
+                        <div class="grid md:grid-cols-2 gap-6 mb-8">
+                            <div class="glass-card rounded-2xl p-6">
+                                <h3 class="text-xl font-bold mb-4">Access Details</h3>
+                                <div class="space-y-3">
+                                    <div>
+                                        <p class="text-sm text-gray-400 mb-1">OTP</p>
+                                        <p class="text-2xl font-mono ${isExpired ? 'text-red-400' : 'text-green-400'}">${state.otp}</p>
+                                        <p class="text-xs ${isExpired ? 'text-red-400' : 'text-gray-400'} mt-1">
+                                            ${isExpired ? 'Expired' : 'Expires in ' + formatTime(state.otpExpiry)}
+                                        </p>
+                                    </div>
+                                    <button onclick="regenerateOTP()" class="w-full py-3 bg-blue-500 rounded-xl font-semibold hover:bg-blue-600 transition">
+                                        Regenerate OTP
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="glass-card rounded-2xl p-6">
+                                <h3 class="text-xl font-bold mb-4 text-red-400">Danger Zone</h3>
+                                <button onclick="deleteAlbum()" class="w-full py-3 bg-red-500 rounded-xl font-semibold hover:bg-red-600 transition">
+                                    Delete Album
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="glass-card rounded-2xl p-6">
+                            <h3 class="text-xl font-bold mb-4">Photos (${state.currentAlbum.photos.length})</h3>
+                            <div class="grid grid-cols-4 gap-4">
+                                ${state.currentAlbum.photos.map((p, i) => `
+                                    <div class="relative group">
+                                        <img src="${p}" class="w-full h-32 object-cover rounded-xl">
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderFooter() {
+            return `
+                <footer class="px-6 py-12 border-t border-white/10">
+                    <div class="max-w-6xl mx-auto text-center">
+                        <p class="text-gray-400 mb-2">© 2024 Amanah - Trusted Photo Sharing</p>
+                        <p class="text-sm text-gray-500">Built with trust and security in mind</p>
+                        <div class="mt-4">
+                            <a href="mailto:help.amanahapp@gmail.com" class="text-purple-400 hover:text-purple-300 transition text-sm">
+                                help.amanahapp@gmail.com
+                            </a>
+                        </div>
+                    </div>
+                </footer>
+            `;
+        }
+        
+        function renderTerms() {
+            return `
+                <div class="slide-up min-h-screen pt-24 px-6 pb-20">
+                    <div class="max-w-3xl mx-auto">
+                        <button onclick="nav('home')" class="mb-8 text-purple-300 hover:text-white transition flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                            </svg>
+                            <span>Back</span>
+                        </button>
+                        
+                        <div class="glass-card rounded-3xl p-10">
+                            <h2 class="text-3xl font-bold mb-8">Terms & Conditions</h2>
+                            <div class="space-y-6 text-gray-300">
+                                <div>
+                                    <h3 class="text-xl font-bold text-white mb-3">1. Purpose</h3>
+                                    <p>Amanah is designed exclusively for secure matrimonial photo sharing with OTP protection and screenshot prevention.</p>
+                                </div>
+                                <div>
+                                    <h3 class="text-xl font-bold text-white mb-3">2. Screenshot Policy</h3>
+                                    <p class="text-red-400 font-semibold">Screenshots, screen recording, or any unauthorized capture is strictly prohibited and will result in immediate access revocation.</p>
+                                </div>
+                                <div>
+                                    <h3 class="text-xl font-bold text-white mb-3">3. User Responsibilities</h3>
+                                    <p>Users must only upload photos they have permission to share. Misuse may result in legal action.</p>
+                                </div>
+                                <div>
+                                    <h3 class="text-xl font-bold text-white mb-3">4. Data Security</h3>
+                                    <p>Photos are stored securely and can be deleted by the owner at any time. OTP access expires after 24 hours.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function render() {
+            const app = document.getElementById('app');
+            let content = '';
+            
+            switch(state.view) {
+                case 'home': content = renderHome(); break;
+                case 'upload': content = renderUpload(); break;
+                case 'success': content = renderSuccess(); break;
+                case 'access': content = renderAccess(); break;
+                case 'viewer': content = renderViewer(); break;
+                case 'manage-access': content = renderManageAccess(); break;
+                case 'manage': content = renderManage(); break;
+                case 'terms': content = renderTerms(); break;
+                default: content = renderHome();
+            }
+            
+            app.innerHTML = content;
+            
+            if (state.view === 'viewer') {
+                setTimeout(setupProtection, 100);
+            }
+        }
+        
+        // Check for album ID in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const albumParam = urlParams.get('album');
+        if (albumParam) {
+            state.albumIdToView = albumParam;
+            state.view = 'access';
+        }
+        
+        render();
+    </script>
+</body>
+</html>
+        
