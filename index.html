@@ -77,6 +77,7 @@
             -moz-user-select: none; 
             -ms-user-select: none; 
             user-select: none;
+            overflow-x: hidden; /* Prevent horizontal scroll on mobile */
         }
     </style>
     
@@ -708,7 +709,7 @@
                         <h3 class="text-xl font-bold text-purple-400 mb-4">3. Terms & Conditions</h3>
                         <div class="flex items-start">
                             <input id="terms-checkbox" type="checkbox" onchange="toggleTerms(this)" ${state.termsAccepted ? 'checked' : ''}
-                                class="h-5 w-5 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500 cursor-pointer mt-1">
+                                class="h-5 w-5 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500 focus:border-purple-500 cursor-pointer mt-1">
                             <label for="terms-checkbox" class="ml-3 text-sm text-gray-400">
                                 I have read and agree to the <a href="#" onclick="nav('terms'); return false;" class="text-purple-400 hover:text-purple-300 underline">Terms & Conditions</a>, particularly acknowledging that unauthorized sharing/screenshotting is a breach of trust and may result in legal action.
                             </label>
@@ -832,7 +833,7 @@
                         ${actionCard(
                             'Manage Access',
                             'orange',
-                            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0M19.423 9.771c.732-1.38 1.157-2.915 1.157-4.526M4.577 9.771c-.732-1.38-1.157-2.915-1.157-4.526M9 10a3 3 0 11-6 0 3 3 0 016 0zm-6 9a3 3 0 11-6 0 3 3 0 016 0zm14-14a3 3 0 11-6 0 3 3 0 016 0zm-6 9a3 3 0 11-6 0 3 3 0 016 0z"/>',
+                            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0M19.423 9.771c.732-1.38 1.157-2.915 1.157-4.526M4.577 9.771c-.732-1.38-1.157-2.915-1.157-4.526M10.325 19.683c-.426 1.756-2.924 1.756-3.35 0M4.577 14.229c.732 1.38 1.157 2.915 1.157 4.526M14.229 19.423c1.38-.732 2.915-1.157 4.526-1.157M19.423 14.229c-.732 1.38-1.157 2.915-1.157 4.526M10.325 4.317a8 8 0 013.35 0M10.325 19.683a8 8 0 01-3.35 0M19.423 9.771a8 8 0 010 8.458M4.577 9.771a8 8 0 010 8.458M12 12a3 3 0 100-6 3 3 0 000 6z"/>',
                             '<p>• Regenerate or expire OTP</p><p>• Delete albums anytime</p><p>• Revoke access instantly</p>',
                             'Manage Album',
                             "nav('manage')"
@@ -1032,6 +1033,7 @@
             `;
         }
         
+        // FIX: Added implementation for Terms & Conditions view
         function renderTermsView() {
             return `
                 <div class="max-w-4xl mx-auto px-4 pt-24 min-h-screen">
@@ -1063,3 +1065,73 @@
         }
 
         function render() {
+            const app = document.getElementById('app');
+            let content = renderHeader();
+
+            if (state.loading) {
+                content += renderLoading();
+            } else {
+                switch (state.view) {
+                    case 'home':
+                        content += renderHomeView();
+                        break;
+                    case 'upload':
+                        content += renderUploadView();
+                        break;
+                    case 'manage': 
+                        content += renderManageInputView();
+                        break;
+                    case 'gallery':
+                        content += renderGalleryView();
+                        break;
+                    case 'viewer': 
+                        content += renderViewerInputView();
+                        break;
+                    case 'view':
+                        content += renderViewerView();
+                        break;
+                    case 'terms':
+                        content += renderTermsView(); // Now points to the fixed function
+                        break;
+                    default:
+                        content += renderHomeView();
+                }
+            }
+            
+            app.innerHTML = content;
+            
+            // Render Lightbox on top of everything if active
+            if (state.lightboxIndex !== null) {
+                app.insertAdjacentHTML('beforeend', renderLightbox());
+                // Activate protection when the lightbox is opened in the viewer path
+                if (state.view === 'view' && state.isVerified) {
+                    setTimeout(setupProtection, 100);
+                }
+            } else {
+                // Remove protection when lightbox is closed
+                protectionActive = false;
+            }
+
+            // Clean up: If in viewer mode but not verified, show input.
+            if (state.view === 'viewer' && state.albumIdToView && !state.isVerified) {
+                 // Trigger checkVerifyFormComplete to enable the button if all fields are valid
+                checkVerifyFormComplete();
+            }
+        }
+        
+        async function initializeApp() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const albumId = urlParams.get('album');
+            
+            if (albumId) {
+                state.albumIdToView = albumId;
+                state.view = 'viewer';
+            }
+            render();
+        }
+
+        document.addEventListener('DOMContentLoaded', initializeApp);
+
+    </script>
+</body>
+</html>
