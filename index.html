@@ -79,6 +79,44 @@
             user-select: none;
             overflow-x: hidden; /* Prevent horizontal scroll on mobile */
         }
+        
+        /* New styles for the visual storytelling section */
+        .story-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            position: relative;
+        }
+        .story-icon {
+            background-color: #9333ea;
+            color: #fff;
+            padding: 1rem;
+            border-radius: 50%;
+            display: inline-flex;
+            margin-bottom: 0.75rem;
+            z-index: 10;
+        }
+        .story-connector {
+            position: absolute;
+            top: 2.5rem;
+            left: 50%;
+            height: 3px;
+            background-color: #4a5568;
+            z-index: 5;
+            animation: flow 4s infinite linear;
+        }
+        @keyframes flow {
+            0% { background-color: #4a5568; }
+            50% { background-color: #a855f7; }
+            100% { background-color: #4a5568; }
+        }
+        /* Mobile adjustment for connectors */
+        @media (max-width: 768px) {
+            .story-connector {
+                display: none; /* Hide horizontal connectors on small screens */
+            }
+        }
     </style>
     
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-YPHFTQYLE1"></script>
@@ -643,10 +681,7 @@
                                 </h3>
                                 <p class="text-sm text-gray-400 mb-3 leading-relaxed">
                                     Amanah is a secure, closed photo-sharing platform with complete control over access and visibility. — built to prevent uncontrolled forwarding, misuse, and endless circulation. Every photo is shared with clear consent, control, and accountability, so it reaches only the intended recipient.
-                                    Rooted in the values of trust, dignity, and responsible usage, Amanah enables intentional photo sharing where the sender remains in control at all times.
-                                </p>
-                                <p class="text-xs text-gray-500 leading-relaxed mb-4">
-                                    Amanah is founded by Syed Rashad, a Bangalore-based startup enthusiast with hands-on experience in building customer-first, compliant systems. Shaped by personal experience and real-world gaps, Amanah is a founder-led initiative focused on building trust-first products that solve problems that truly matter.
+                                    Rooted in the values of trust, dignity, and responsible usage, Amanah is a founder-led initiative focused on building trust-first products.
                                 </p>
                             </div>
                             <div>
@@ -813,35 +848,59 @@
                             Amanah
                         </h1>
 
-                        <p class="text-xl text-gray-300 mb-3">
+                        <p class="text-xl text-purple-400 mb-6 font-semibold">
                             Share Marriage Photos Without Losing Control
                         </p>
 
-                        <p class="text-md text-gray-400 max-w-3xl mx-auto leading-relaxed">
-                            Once a marriage photo is shared on WhatsApp or email, it gets forwarded,
-                            saved, judged, and stored forever — often without consent.
-                            <br><br>
-                            Amanah exists to stop that.
+                        <p class="text-lg text-gray-300 max-w-4xl mx-auto leading-relaxed">
+                            Once a personal photo is shared, it can be saved, forwarded, and stored indefinitely without your consent. 
+                            <span class="font-bold text-red-400">Amanah exists to stop that uncontrolled circulation.</span>
                         </p>
                     </div>
 
-                    <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 mb-12 max-w-4xl mx-auto">
-                        <h2 class="text-xl font-bold text-white mb-3 text-center">
-                            Why Amanah Exists
+                    <div class="bg-gray-800 border border-gray-700 rounded-2xl p-8 mb-12 max-w-5xl mx-auto">
+                        <h2 class="text-2xl font-bold text-white mb-8 text-center">
+                            The Uncontrolled Sharing Chain
                         </h2>
-                        <p class="text-gray-400 text-sm leading-relaxed text-center">
-                            Matrimonial photos are meant to be shared with dignity and intention.
-                            Existing platforms enable uncontrolled forwarding and permanent storage.
-                            Amanah enforces consent, time-bound access, and accountability.
-                        </p>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+                            <div class="story-step">
+                                <span class="story-icon">
+                                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                                </span>
+                                <h4 class="font-semibold text-lg text-white">1. Share</h4>
+                                <p class="text-gray-400 text-sm mt-1">Sender sends photo to one person via WhatsApp/Email.</p>
+                                <div class="story-connector w-[calc(100%-4rem)] md:w-full md:left-full md:top-1/2 md:-translate-x-full md:transform-none"></div>
+                            </div>
+
+                            <div class="story-step">
+                                <span class="story-icon bg-yellow-600">
+                                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v4a1 1 0 001 1h6a1 1 0 001-1V7M8 7H6M8 7h2m-2 0H5a1 1 0 00-1 1v7m14-7v7M16 18H8m8 0v1a2 2 0 01-2 2h-4a2 2 0 01-2-2v-1m4-12a1 1 0 00-1-1h-2a1 1 0 00-1 1v1h4v-1z"/></svg>
+                                </span>
+                                <h4 class="font-semibold text-lg text-white">2. Lost Control</h4>
+                                <p class="text-gray-400 text-sm mt-1">Receiver saves photo to gallery, then forwards to other groups/family.</p>
+                                <div class="story-connector w-[calc(100%-4rem)] md:w-full md:left-full md:top-1/2 md:-translate-x-full md:transform-none"></div>
+                            </div>
+
+                            <div class="story-step">
+                                <span class="story-icon bg-red-600">
+                                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                </span>
+                                <h4 class="font-semibold text-lg text-white">3. Permanent Loss</h4>
+                                <p class="text-gray-400 text-sm mt-1">Photo circulates indefinitely, losing its dignity and purpose.</p>
+                            </div>
+                        </div>
                     </div>
+                    <h2 class="text-3xl font-extrabold text-white text-center mb-8 border-b border-gray-700 pb-3 max-w-4xl mx-auto">
+                        Amanah: Control, Consent, Dignity
+                    </h2>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-14">
                         ${actionCard(
                             'Upload Photos',
                             'purple',
                             '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>',
-                            '<p>• Upload up to 4 photos securely</p><p>• OTP-protected access</p><p>• You stay in control</p>',
+                            '<p>• Upload a max of 4 photos securely</p><p>• OTP-protected access for 24h</p><p>• You maintain full ownership</p>',
                             'Start New Upload',
                             "nav('upload')"
                         )}
@@ -850,7 +909,7 @@
                             'Manage Access',
                             'orange',
                             '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0M19.423 9.771c.732-1.38 1.157-2.915 1.157-4.526M4.577 9.771c-.732-1.38-1.157-2.915-1.157-4.526M10.325 19.683c-.426 1.756-2.924 1.756-3.35 0M4.577 14.229c.732 1.38 1.157 2.915 1.157 4.526M14.229 19.423c1.38-.732 2.915-1.157 4.526-1.157M19.423 14.229c-.732 1.38-1.157 2.915-1.157 4.526M12 12a3 3 0 100-6 3 3 0 000 6z"/>',
-                            '<p>• Regenerate or expire OTP</p><p>• Delete albums anytime</p><p>• Revoke access instantly</p>',
+                            '<p>• Regenerate or expire OTP instantly</p><p>• Delete albums anytime, permanently</p><p>• Revoke viewer access on demand</p>',
                             'Manage Album',
                             "nav('manage')"
                         )}
@@ -859,21 +918,10 @@
                             'View Photos',
                             'green',
                             '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>',
-                            '<p>• OTP required for access</p><p>• No downloads allowed</p><p>• Screenshots blocked</p>',
+                            '<p>• OTP required for single-session access</p><p>• Downloads are strictly blocked</p><p>• Intelligent screenshot detection</p>',
                             'View Album',
                             "nav('viewer')"
                         )}
-                    </div>
-
-                    <div class="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-4xl mx-auto mb-16">
-                        <h3 class="text-lg font-bold text-white mb-4 text-center">
-                            Who Amanah Is (and Isn’t) For
-                        </h3>
-                        <p class="text-gray-400 text-sm leading-relaxed text-center">
-                            Amanah is built for families and individuals who value privacy,
-                            consent, and controlled sharing during the matrimonial process.
-                            It is not meant for public distribution or bulk sharing.
-                        </p>
                     </div>
 
                 </div>
