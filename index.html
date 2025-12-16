@@ -132,13 +132,22 @@
         function genOTP(){return Math.floor(100000+Math.random()*900000).toString()}
         function genAlbumId(){return'album_'+Math.random().toString(36).substr(2,9)}
         
-        // FIX: Corrected formatTime to handle milliseconds correctly and show H/M.
+        // FIX: Corrected formatTime to handle milliseconds correctly and show H/M/M.
         function formatTime(e){
             const r=e-Date.now();
             if(r<=0)return 'Expired';
             const t=Math.floor(r/36e5); // Hours
             const n=Math.floor(r%36e5/6e4); // Minutes
-            return t>0?`${t}h ${n}m`:`${n}m`;
+            
+            // Show only minutes if less than 1 hour, otherwise show H/M
+            if (t > 0) {
+                return `${t}h ${n}m`;
+            } else if (n > 0) {
+                return `${n}m`;
+            } else {
+                // If less than a minute, show 'less than 1m'
+                return 'less than 1m';
+            }
         }
         
         function actionCard(title, color, svgPath, text, buttonText, action) {
@@ -690,7 +699,7 @@
 
                     <div class="bg-gray-800 p-6 rounded-xl card-shadow mb-8">
                         <h3 class="text-xl font-bold text-purple-400 mb-4">2. Select Photos (${state.photos.length}/${maxPhotos})</h3>
-                        <p class="text-sm text-gray-400 mb-4">Upload up to ${maxPhotos} high-quality **image** files. **Videos are not allowed.**</p>
+                        <p class="text-sm text-gray-400 mb-4">Upload up to **${maxPhotos}** high-quality **image** files. **Videos are not allowed.**</p>
                         
                         <div class="border-2 border-dashed border-purple-500 rounded-lg p-6 text-center cursor-pointer hover:border-purple-400 transition-colors" onclick="document.getElementById('file-upload').click()">
                             <input type="file" id="file-upload" accept="image/*" multiple onchange="handleFiles(event)" class="hidden" ${state.photos.length >= maxPhotos ? 'disabled' : ''}>
@@ -964,10 +973,13 @@
                 return '<div class="max-w-xl mx-auto pt-24 text-center"><h2 class="text-3xl font-extrabold text-red-500">Access Denied</h2><p class="text-gray-400 mt-2">You must verify your OTP to view photos.</p><button onclick="nav(\'home\')" class="mt-6 btn-gradient-purple py-3 px-6 rounded-lg font-semibold">Go Home</button></div>';
             }
 
-            const isExpired = Date.now() > state.otpExpiry;
+            // FIX: Ensure accurate calculation of expiration status on the viewer screen
+            const isExpired = Date.now() > state.currentAlbum.otp_expiry; // Use album expiry from state
+            const timeRemaining = formatTime(state.currentAlbum.otp_expiry);
+
             const otpStatus = isExpired 
                 ? `<span class="text-red-500 font-bold">EXPIRED</span>`
-                : `<span class="text-green-400 font-bold">${formatTime(state.otpExpiry)} remaining</span>`;
+                : `<span class="text-green-400 font-bold">${timeRemaining} remaining</span>`;
 
             // Note: Canvas drawing for thumbnails is disabled to simplify and optimize for lightbox viewing.
             // Thumbnails now display a placeholder icon and open the lightbox where protection is focused.
