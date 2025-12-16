@@ -10,6 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
+        /* Base styles */
         .card-shadow {
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
         }
@@ -22,28 +23,29 @@
             transform: translateY(-1px);
         }
         
+        /* Ensures canvas container maintains aspect ratio without stretching the canvas CSS size */
         .secure-image-container {
             position: relative;
             display: inline-block;
             -webkit-user-select: none;
             user-select: none;
         }
-
-        .watermark-overlay {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) rotate(-45deg);
-            white-space: nowrap;
-            font-size: 3vw;
-            font-weight: bold;
-            color: rgba(255, 255, 255, 0.1);
-            pointer-events: none;
-            user-select: none;
-            text-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
-            z-index: 10;
+        .viewer-thumbnail {
+            width: 100%;
+            height: 200px; /* Fixed height for thumbnails */
+            background-color: #1f2937;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        
+        .viewer-thumbnail canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain; 
+            width: auto !important; /* Override inline style width */
+            height: auto !important; /* Override inline style height */
+        }
+
         .btn-disabled {
             background-color: #6b7280;
             cursor: not-allowed;
@@ -128,16 +130,24 @@
         
         function genOTP(){return Math.floor(100000+Math.random()*900000).toString()}
         function genAlbumId(){return'album_'+Math.random().toString(36).substr(2,9)}
-        function formatTime(e){const r=e-Date.now(),t=Math.floor(r/36e5),n=Math.floor(r%36e5/6e4);return t+'h '+n+'m'}
+        
+        // FIX: Corrected formatTime to handle milliseconds correctly and show H/M.
+        function formatTime(e){
+            const r=e-Date.now();
+            if(r<=0)return 'Expired';
+            const t=Math.floor(r/36e5); // Hours
+            const n=Math.floor(r%36e5/6e4); // Minutes
+            return t>0?`${t}h ${n}m`:`${n}m`;
+        }
         
         function actionCard(title, color, svgPath, text, buttonText, action) {
             return `
-                <div class="bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-700 hover:border-${color}-500 transition-all duration-300">
-                    <div class="flex items-center mb-4">
-                        <svg class="w-8 h-8 text-${color}-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">${svgPath}</svg>
-                        <h3 class="text-xl font-bold text-white">${title}</h3>
+                <div class="bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-700 hover:border-${color}-500 transition-all duration-300 flex flex-col">
+                    <div class="flex items-start mb-4">
+                        <svg class="w-8 h-8 text-${color}-400 mr-3 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">${svgPath}</svg>
+                        <h3 class="text-xl font-bold text-white leading-tight">${title}</h3>
                     </div>
-                    <div class="text-gray-400 space-y-2 mb-6 text-sm">${text}</div>
+                    <div class="text-gray-400 space-y-2 mb-8 text-sm flex-grow">${text}</div>
                     <button onclick="${action}" class="w-full bg-${color}-600 text-white py-3 rounded-lg font-semibold transition-all duration-300 hover:bg-${color}-700">
                         ${buttonText}
                     </button>
@@ -200,7 +210,10 @@
         }
 
         function updateAlbumId(input) {
-            state.albumIdToView = input.value;
+            // Cleanup input to only keep the ID if a full URL was pasted
+            const value = input.value.trim();
+            const urlMatch = value.match(/album=(album_[a-z0-9]+)/);
+            state.albumIdToView = urlMatch ? urlMatch[1] : value;
             checkVerifyFormComplete();
         }
 
@@ -226,29 +239,40 @@
             checkManageFormComplete();
         }
 
-        function scrambleCanvasPixels() {
-            const photoIndex = state.lightboxIndex !== null ? state.lightboxIndex : 0;
-            const canvas = document.getElementById(`secure-photo-${photoIndex}`);
+        function scrambleCanvasPixels(canvasId) {
+            const canvas = document.getElementById(canvasId);
             if (!canvas) return;
 
             const ctx = canvas.getContext('2d');
-            ctx.fillStyle = Math.random() > 0.5 ? 'rgba(0,0,0,1)' : 'rgba(255,255,255,1)'; 
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Set canvas size based on its current rendered size for fast scramble
+            const width = canvas.offsetWidth || 600; 
+            const height = canvas.offsetHeight || 400;
+
+            canvas.width = width;
+            canvas.height = height;
+
+            // Simple scramble effect
+            ctx.fillStyle = '#1f2937'; 
+            ctx.fillRect(0, 0, width, height);
             
             ctx.save();
-            ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
-            ctx.font = 'bold 300px Arial'; 
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.9)';
+            ctx.font = 'bold 50px Arial'; 
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('ACCESS DENIED', canvas.width / 2, canvas.height / 2);
+            ctx.fillText('ACCESS DENIED', width / 2, height / 2);
             ctx.restore();
 
-            console.log('⚡ Canvas Scrambled!');
+            console.log(`⚡ Canvas ${canvasId} Scrambled!`);
         }
 
         function handleScreenshotAttempt() {
             state.screenshotAttempts++;
-            scrambleCanvasPixels();
+            
+            // Scramble all visible secure canvases (thumbnails and lightbox)
+            const canvasElements = document.querySelectorAll('canvas[id^="secure-photo-"]');
+            canvasElements.forEach(canvas => scrambleCanvasPixels(canvas.id));
             
             const overlay = document.getElementById('screenshot-block-overlay');
             if (overlay) {
@@ -282,7 +306,7 @@
             if (protectionActive) return;
             protectionActive = true;
 
-            const viewerContent = document.getElementById('viewer-content-area');
+            const viewerContent = document.getElementById('viewer-content-area') || document.getElementById('lightbox-container');
             const overlay = document.getElementById('screenshot-block-overlay');
             if (!viewerContent || !overlay) return;
 
@@ -350,7 +374,8 @@
             });
         }
         
-        function drawPhotoOnCanvas(canvasId, photoData, watermarkText) {
+        // IMPROVED: Watermark positioning, rotation, and opacity
+        function drawPhotoOnCanvas(canvasId, photoData, watermarkText, isLightbox = false) {
             const canvas = document.getElementById(canvasId);
             if (!canvas) return;
 
@@ -358,50 +383,56 @@
             const img = new Image();
             
             img.onload = () => {
-                const ratio = img.height / img.width;
-                const canvasWidth = canvas.clientWidth;
-                // Dynamically adjust canvas height based on image aspect ratio for responsive design
-                const canvasHeight = canvasWidth * ratio; 
+                const imgWidth = img.width;
+                const imgHeight = img.height; 
                 
                 // Set native dimensions for drawing
-                canvas.width = img.width;
-                canvas.height = img.height;
-                // Set CSS height for display responsiveness
-                canvas.style.height = `${canvasHeight}px`;
+                canvas.width = imgWidth;
+                canvas.height = imgHeight;
+                
+                // Set CSS dimensions for display control
+                if(isLightbox) {
+                    canvas.style.maxWidth = '100%';
+                    canvas.style.maxHeight = '90vh';
+                    canvas.style.width = 'auto';
+                    canvas.style.height = 'auto';
+                } else {
+                    // Thumbnail dimensions
+                    canvas.style.width = '100%';
+                    canvas.style.height = '100%'; 
+                }
 
-                ctx.drawImage(img, 0, 0, img.width, img.height);
+                ctx.drawImage(img, 0, 0, imgWidth, imgHeight);
                 
                 // --- Watermark Logic ---
                 ctx.save();
-                ctx.globalAlpha = 0.15;
+                ctx.globalAlpha = 0.08; // Reduced opacity for less intrusion
                 ctx.fillStyle = 'white';
                 
                 // Scale watermark text size based on image size
-                const watermarkSize = Math.max(250, canvas.width / 8); 
+                const watermarkSize = Math.max(100, imgWidth / 10); 
                 ctx.font = `bold ${watermarkSize}px Arial`; 
                 
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 
-                const centerX = canvas.width / 2;
-                const centerY = canvas.height / 2;
+                const centerX = imgWidth / 2;
+                const centerY = imgHeight / 2;
                 
+                // Rotate by -45 degrees
                 ctx.translate(centerX, centerY);
                 ctx.rotate(-45 * Math.PI / 180);
                 
                 ctx.fillText(watermarkText || 'Amanah Secured', 0, 0);
                 
-                // Shadow/Outline effect for better visibility
-                ctx.globalAlpha = 0.10; 
-                ctx.fillStyle = 'black';
-                ctx.fillText(watermarkText || 'Amanah Secured', 5, 5);
-
                 ctx.restore();
             };
 
             img.onerror = () => {
                 console.error(`Failed to load photo data for canvas ${canvasId}`);
                 ctx.fillStyle = '#333';
+                canvas.style.width = '100%';
+                canvas.style.height = '300px'; 
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.fillStyle = 'red';
                 ctx.font = 'bold 50px Arial';
@@ -532,7 +563,10 @@
             try{
                 const{data:e,error:t}=await supabase.from('albums').select('*').eq('id',state.albumIdToView).single();
                 if(t||!e){alert('Album not found. Please check your Album ID.');state.loading=false;render();return}
-                if(Date.now()>e.otp_expiry){alert('OTP has expired. Please contact the album owner to regenerate it.');state.loading=false;render();return}
+                
+                const isExpired = Date.now() > e.otp_expiry;
+                if(isExpired){alert('OTP has expired. Please contact the album owner to regenerate it.');state.loading=false;render();return}
+                
                 if(e.otp!==state.viewerOtp){alert('Invalid OTP. Please check and try again.');state.loading=false;render();return}
                 
                 const{data:n,error:a}=await supabase.from('photos').select('*').eq('album_id',state.albumIdToView).order('created_at',{ascending:true});
@@ -543,7 +577,7 @@
                 state.view='view';
                 state.loading=false;
                 render();
-                setTimeout(setupProtection,100);
+                // Protection is set up when the viewer opens the lightbox/view
             }catch(e){
                 console.error('Verify error:',e);
                 alert('Failed to verify album: '+e.message);
@@ -569,7 +603,7 @@
                             <button onclick="nav('home')" class="text-sm font-semibold px-4 py-2 rounded-full transition-colors ${state.view === 'home' ? 'bg-purple-600 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-700'}">
                                 Home
                             </button>
-                            ${state.currentAlbum ? `
+                            ${state.currentAlbum && (state.view === 'gallery' || state.view === 'view') ? `
                                 <button onclick="nav('gallery')" class="text-sm font-semibold px-4 py-2 rounded-full transition-colors ${state.view === 'gallery' ? 'bg-purple-600 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-700'}">
                                     My Album
                                 </button>
@@ -627,7 +661,7 @@
             const uploadButtonClass = uploadFormComplete ? 'btn-gradient-purple hover:bg-purple-700' : 'btn-disabled';
 
             return `
-                <div class="max-w-3xl mx-auto pt-24 min-h-screen">
+                <div class="max-w-3xl mx-auto px-4 pt-24 min-h-screen">
                     <h2 class="text-3xl font-extrabold text-white mb-6 border-b border-gray-700 pb-3">Create New Secured Album</h2>
                     
                     <div class="bg-gray-800 p-6 rounded-xl card-shadow mb-8">
@@ -694,7 +728,7 @@
             const manageButtonClass = manageFormComplete ? 'bg-orange-600 hover:bg-orange-700' : 'btn-disabled';
 
             return `
-                <div class="max-w-xl mx-auto pt-24 min-h-screen">
+                <div class="max-w-xl mx-auto px-4 pt-24 min-h-screen">
                     <h2 class="text-3xl font-extrabold text-white mb-6 border-b border-gray-700 pb-3 text-center">Manage Existing Album</h2>
                     <div class="bg-gray-800 p-6 rounded-xl card-shadow mb-8 border border-orange-500">
                         <h3 class="text-xl font-bold text-orange-400 mb-4">Enter Uploader Email</h3>
@@ -720,7 +754,7 @@
             const verifyButtonClass = verifyFormComplete ? 'bg-green-600 hover:bg-green-700' : 'btn-disabled';
 
             return `
-                <div class="max-w-xl mx-auto pt-24 min-h-screen">
+                <div class="max-w-xl mx-auto px-4 pt-24 min-h-screen">
                     <h2 class="text-3xl font-extrabold text-white mb-6 border-b border-gray-700 pb-3 text-center">View Secured Album</h2>
                     <div class="bg-gray-800 p-6 rounded-xl card-shadow mb-8 border border-green-500">
                         <h3 class="text-xl font-bold text-green-400 mb-4">Enter Access Details</h3>
@@ -729,7 +763,7 @@
                             <div>
                                 <label for="album-id-view" class="block text-sm font-medium text-gray-400">Album ID / Link</label>
                                 <input type="text" id="album-id-view" oninput="updateAlbumId(this)" value="${state.albumIdToView}"
-                                    class="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-3 text-white focus:ring-green-500 focus:border-green-500" placeholder="e.g., album_xxxxxxxxx" required>
+                                    class="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-3 text-white focus:ring-green-500 focus:border-green-500" placeholder="e.g., album_xxxxxxxxx or full link" required>
                             </div>
                             <div>
                                 <label for="viewer-otp" class="block text-sm font-medium text-gray-400">One-Time Passcode (OTP)</label>
@@ -752,7 +786,7 @@
             <div class="min-h-screen pt-10">
                 <div class="max-w-6xl mx-auto px-4">
 
-                    <div class="text-center mb-10 p-6 rounded-xl">
+                    <div class="text-center mb-10 pt-16">
                         <svg class="w-16 h-16 text-purple-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
@@ -785,7 +819,7 @@
                         </p>
                     </div>
 
-                    <div class="grid md:grid-cols-3 gap-6 mb-14">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-14">
                         ${actionCard(
                             'Upload Photos',
                             'purple',
@@ -798,7 +832,7 @@
                         ${actionCard(
                             'Manage Access',
                             'orange',
-                            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0"/>',
+                            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0M19.423 9.771c.732-1.38 1.157-2.915 1.157-4.526M4.577 9.771c-.732-1.38-1.157-2.915-1.157-4.526M9 10a3 3 0 11-6 0 3 3 0 016 0zm-6 9a3 3 0 11-6 0 3 3 0 016 0zm14-14a3 3 0 11-6 0 3 3 0 016 0zm-6 9a3 3 0 11-6 0 3 3 0 016 0z"/>',
                             '<p>• Regenerate or expire OTP</p><p>• Delete albums anytime</p><p>• Revoke access instantly</p>',
                             'Manage Album',
                             "nav('manage')"
@@ -807,7 +841,7 @@
                         ${actionCard(
                             'View Photos',
                             'green',
-                            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0"/>',
+                            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>',
                             '<p>• OTP required</p><p>• No downloads</p><p>• Screenshots blocked</p>',
                             'View Album',
                             "nav('viewer')"
@@ -873,11 +907,11 @@
                             </div>
                         </div>
 
-                        <div class="flex space-x-4">
-                            <button onclick="shareViaWhatsApp()" class="flex-grow bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors">
+                        <div class="flex space-x-4 flex-wrap gap-y-2">
+                            <button onclick="shareViaWhatsApp()" class="flex-1 min-w-full sm:min-w-0 sm:flex-auto bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors">
                                 Share via WhatsApp
                             </button>
-                            <button onclick="copyText()" class="flex-grow bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors">
+                            <button onclick="copyText()" class="flex-1 min-w-full sm:min-w-0 sm:flex-auto bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors">
                                 Copy Share Message
                             </button>
                         </div>
@@ -888,14 +922,14 @@
                             <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             Access Management
                         </h3>
-                        <div class="flex space-x-4">
-                            <button onclick="regenOTP()" class="flex-grow bg-yellow-600 text-white py-3 rounded-lg font-semibold hover:bg-yellow-700 transition-colors">
+                        <div class="flex flex-wrap gap-4">
+                            <button onclick="regenOTP()" class="flex-1 min-w-full sm:min-w-[150px] bg-yellow-600 text-white py-3 rounded-lg font-semibold hover:bg-yellow-700 transition-colors">
                                 Regenerate New OTP (24 Hrs)
                             </button>
-                            <button onclick="expireOTP()" class="flex-grow bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors">
+                            <button onclick="expireOTP()" class="flex-1 min-w-full sm:min-w-[150px] bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors">
                                 Expire OTP Now
                             </button>
-                            <button onclick="delAlbum()" class="flex-grow bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors">
+                            <button onclick="delAlbum()" class="flex-1 min-w-full sm:min-w-[150px] bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors">
                                 Delete Entire Album
                             </button>
                         </div>
@@ -913,6 +947,7 @@
                         `).join('')}
                     </div>
                 </div>
+                ${renderFooter()}
             `;
         }
         
@@ -921,18 +956,20 @@
                 return '<div class="max-w-xl mx-auto pt-24 text-center"><h2 class="text-3xl font-extrabold text-red-500">Access Denied</h2><p class="text-gray-400 mt-2">You must verify your OTP to view photos.</p><button onclick="nav(\'home\')" class="mt-6 btn-gradient-purple py-3 px-6 rounded-lg font-semibold">Go Home</button></div>';
             }
 
-            const photosHtml = state.currentAlbum.photos.map((photo, index) => {
-                const watermarkText = `${state.currentAlbum.name} (${state.currentAlbum.id})`;
-                const canvasId = `secure-photo-${index}`;
-                
-                // Use a minimal wrapper for the canvas
-                setTimeout(() => drawPhotoOnCanvas(canvasId, photo, watermarkText), 50);
+            const isExpired = Date.now() > state.otpExpiry;
+            const otpStatus = isExpired 
+                ? `<span class="text-red-500 font-bold">EXPIRED</span>`
+                : `<span class="text-green-400 font-bold">${formatTime(state.otpExpiry)} remaining</span>`;
 
+            // Note: Canvas drawing for thumbnails is disabled to simplify and optimize for lightbox viewing.
+            // Thumbnails now display a placeholder icon and open the lightbox where protection is focused.
+            const photosHtml = state.currentAlbum.photos.map((photo, index) => {
                 return `
-                    <div class="bg-gray-800 rounded-xl card-shadow overflow-hidden p-2">
-                        <div class="secure-image-container w-full aspect-[4/5] mx-auto">
-                            <canvas id="${canvasId}" class="w-full h-full object-contain rounded-lg block"></canvas>
-                        </div>
+                    <div class="bg-gray-800 rounded-xl card-shadow overflow-hidden p-2 group cursor-pointer" onclick="openLightbox(${index})">
+                         <div class="viewer-thumbnail relative">
+                            <svg class="w-16 h-16 text-purple-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L15 14l3.12-3.12A2 2 0 0121 12.828V19a2 2 0 01-2 2H5a2 2 0 01-2-2v-3zm0 0a2 2 0 012-2h1.172l-4.707 4.707"/></svg>
+                            <span class="absolute bottom-2 text-sm text-gray-400 group-hover:text-white transition-colors">Click to View Securely</span>
+                         </div>
                     </div>
                 `;
             }).join('');
@@ -940,13 +977,14 @@
             return `
                 <div class="max-w-6xl mx-auto px-4 pt-24 min-h-screen" id="viewer-content-area">
                     <div class="text-center mb-10">
-                        <h2 class="text-4xl font-extrabold text-purple-400 mb-2">Viewing Secured Album</h2>
+                        <h2 class="text-4xl font-extrabold text-purple-400 mb-2">Secured Album</h2>
                         <p class="text-xl text-gray-400">Shared by: ${state.currentAlbum.name}</p>
-                        <p class="text-sm text-red-400 font-semibold mt-2">Screenshots and screen recording are prohibited.</p>
-                        <p class="text-sm text-gray-500">Access expires in: ${formatTime(state.otpExpiry)}</p>
+                        <p class="text-md text-red-400 font-semibold mt-2">Screenshots and screen recording are prohibited.</p>
+                        <p class="text-sm text-gray-500">Access expires in: ${otpStatus}</p>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <h3 class="text-2xl font-bold text-white mb-4">Click to view photos (${state.currentAlbum.photos.length})</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
                         ${photosHtml}
                     </div>
                     
@@ -954,6 +992,7 @@
                         Close & Logout
                     </button>
                 </div>
+                ${renderFooter()}
             `;
         }
         
@@ -962,25 +1001,27 @@
 
             const photo = state.currentAlbum.photos[state.lightboxIndex];
             const watermarkText = `${state.currentAlbum.name} (${state.currentAlbum.id})`;
-            const canvasId = `secure-photo-${state.lightboxIndex}`;
+            const canvasId = `secure-photo-lightbox`; // Use a constant ID for the single lightbox canvas
             
-            setTimeout(() => drawPhotoOnCanvas(canvasId, photo, watermarkText), 50);
+            // Draw the photo immediately when the lightbox is rendered
+            setTimeout(() => drawPhotoOnCanvas(canvasId, photo, watermarkText, true), 50);
 
             return `
-                <div class="fixed inset-0 bg-black bg-opacity-95 z-40 flex items-center justify-center p-4">
+                <div id="lightbox-container" class="fixed inset-0 bg-black bg-opacity-95 z-40 flex items-center justify-center p-4">
                     
                     <button onclick="closeLightbox()" class="absolute top-4 right-4 text-white text-4xl p-2 hover:text-red-500 z-50">
                         &times;
                     </button>
 
-                    <div class="secure-image-container max-w-full max-h-full h-auto w-auto relative">
-                        <canvas id="${canvasId}" class="w-full h-auto max-h-[90vh] object-contain rounded-lg block"></canvas>
+                    <div class="secure-image-container max-w-full max-h-[90vh] h-full w-full flex items-center justify-center">
+                        <canvas id="${canvasId}" class="object-contain rounded-lg shadow-2xl"></canvas>
                         
                         <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-4 z-50">
                             <button onclick="prevPhoto()" ${state.lightboxIndex === 0 ? 'disabled' : ''}
                                 class="p-3 rounded-full bg-gray-700 text-white ${state.lightboxIndex === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-600'}">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                             </button>
+                            <span class="p-3 bg-gray-700 text-white rounded-lg font-mono text-sm">${state.lightboxIndex + 1} / ${state.currentAlbum.photos.length}</span>
                             <button onclick="nextPhoto()" ${state.lightboxIndex === state.currentAlbum.photos.length - 1 ? 'disabled' : ''}
                                 class="p-3 rounded-full bg-gray-700 text-white ${state.lightboxIndex === state.currentAlbum.photos.length - 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-600'}">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -1022,74 +1063,3 @@
         }
 
         function render() {
-            const app = document.getElementById('app');
-            let content = renderHeader();
-
-            if (state.loading) {
-                content += renderLoading();
-            } else {
-                switch (state.view) {
-                    case 'home':
-                        content += renderHomeView();
-                        break;
-                    case 'upload':
-                        content += renderUploadView();
-                        break;
-                    case 'manage': // Added new input view for manage
-                        content += renderManageInputView();
-                        break;
-                    case 'gallery':
-                        content += renderGalleryView();
-                        break;
-                    case 'viewer': // Added new input view for viewer
-                        content += renderViewerInputView();
-                        break;
-                    case 'view':
-                        content += renderViewerView();
-                        break;
-                    case 'terms':
-                        content += renderTermsView();
-                        break;
-                    default:
-                        content += renderHomeView();
-                }
-            }
-
-            // The footer is outside the switch block to ensure it's always rendered (part of renderFooter())
-            // content += renderFooter(); // Removed as it is outside the app div in the original structure, but the original structure puts it *inside* the main app div. I will put it back inside if the structure is not correct.
-            
-            // Re-adding renderFooter inside the main content flow as in the original code's structure
-            if (state.view !== 'home' && state.view !== 'view' && state.view !== 'upload' && state.view !== 'manage' && state.view !== 'viewer' && state.view !== 'gallery' && state.view !== 'terms') {
-                 // For all other cases, or if not loading, the view function should include the footer if needed. 
-                 // The view functions for home, upload, manage, viewer, gallery, and terms are designed to be full-page and will include the footer if necessary.
-            }
-            
-            app.innerHTML = content;
-            
-            // Render Lightbox on top of everything if active
-            if (state.lightboxIndex !== null) {
-                app.insertAdjacentHTML('beforeend', renderLightbox());
-            }
-
-            // After rendering the viewer, activate protection
-            if (state.view === 'view' && state.isVerified) {
-                setTimeout(setupProtection, 100);
-            }
-        }
-        
-        async function initializeApp() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const albumId = urlParams.get('album');
-            
-            if (albumId) {
-                state.albumIdToView = albumId;
-                state.view = 'viewer'; // Correctly sets state.view to the new input view
-            }
-            render();
-        }
-
-        document.addEventListener('DOMContentLoaded', initializeApp);
-
-    </script>
-</body>
-</html>
