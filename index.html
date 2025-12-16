@@ -110,7 +110,6 @@
 
         let state = {
             view: 'home',
-            homeTab: 'upload', 
             currentAlbum: null,
             uploaderInfo: { name: '', email: '' },
             photos: [],
@@ -193,7 +192,7 @@
         let verifyFormComplete = false;
         
         function checkVerifyFormComplete() {
-            const isComplete = !!state.albumIdToView && !!state.viewerOtp;
+            const isComplete = !!state.albumIdToView && !!state.viewerOtp && state.viewerOtp.length === 6;
             if (isComplete !== verifyFormComplete) {
                 verifyFormComplete = isComplete;
                 render();
@@ -213,7 +212,9 @@
         let manageFormComplete = false;
         
         function checkManageFormComplete() {
-            const isComplete = !!state.manageEmail;
+            // Basic email validation check for form completion
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            const isComplete = emailRegex.test(state.manageEmail);
             if (isComplete !== manageFormComplete) {
                 manageFormComplete = isComplete;
                 render();
@@ -260,7 +261,6 @@
                 });
 
                 // Log the incident (simulated here)
-                // In a real application, you would log this incident to Supabase or a third-party service here.
 
                 setTimeout(() => {
                     nav('home');
@@ -459,7 +459,33 @@
         }
         
         async function manageAlbum(){ 
-            if(!state.manageEmail){alert('Please enter your email');return}state.loading=true;render();try{const{data:albums,error}=await supabase.from('albums').select('*').eq('email',state.manageEmail.trim().toLowerCase()).limit(1);if(error)throw error;if(!albums||albums.length===0){alert('No albums found with this email address.');state.loading=false;render();return}const album=albums[0];const{data:photos}=await supabase.from('photos').select('*').eq('album_id',album.id).order('created_at',{ascending:true});state.currentAlbum={...album,photos:photos.map(p=>p.photo_data)};state.otp=album.otp;state.otpExpiry=album.otp_expiry;state.shareLink=location.origin+location.pathname+'?album='+album.id;state.view='gallery';state.loading=false;render()}catch(e){console.error('Manage error:',e);alert('Failed to load albums: '+e.message);state.loading=false;render()}}
+            if(!manageFormComplete){alert('Please enter a valid email address.');return}
+            state.loading=true;render();
+            try{
+                const{data:albums,error}=await supabase.from('albums').select('*').eq('email',state.manageEmail.trim().toLowerCase()).limit(1);
+                if(error)throw error;
+                if(!albums||albums.length===0){
+                    alert('No albums found with this email address.');
+                    state.loading=false;
+                    render();
+                    return
+                }
+                const album=albums[0];
+                const{data:photos}=await supabase.from('photos').select('*').eq('album_id',album.id).order('created_at',{ascending:true});
+                state.currentAlbum={...album,photos:photos.map(p=>p.photo_data)};
+                state.otp=album.otp;
+                state.otpExpiry=album.otp_expiry;
+                state.shareLink=location.origin+location.pathname+'?album='+album.id;
+                state.view='gallery';
+                state.loading=false;
+                render();
+            }catch(e){
+                console.error('Manage error:',e);
+                alert('Failed to load albums: '+e.message);
+                state.loading=false;
+                render();
+            }
+        }
         
         async function upload(){
             if (!state.termsAccepted) {
@@ -501,7 +527,30 @@
             if(!state.currentAlbum)return;if(!confirm('Expire OTP now? This will immediately block all access to your album.'))return;state.loading=true;render();try{const e=Date.now()-1000,{error:t}=await supabase.from('albums').update({otp_expiry:e}).eq('id',state.currentAlbum.id);if(t)throw t;state.currentAlbum.otp_expiry=e;state.otpExpiry=e;state.loading=false;alert('OTP expired successfully! No one can access this album now.');render()}catch(e){console.error('Expire OTP error:',e);alert('Failed to expire OTP: '+e.message);state.loading=false;render()}}
         
         async function verify(){
-            if(!state.albumIdToView||!state.viewerOtp){alert('Please enter both Album ID and OTP');return}state.loading=true;render();try{const{data:e,error:t}=await supabase.from('albums').select('*').eq('id',state.albumIdToView).single();if(t||!e){alert('Album not found. Please check your Album ID.');state.loading=false;render();return}if(Date.now()>e.otp_expiry){alert('OTP has expired. Please contact the album owner to regenerate it.');state.loading=false;render();return}if(e.otp!==state.viewerOtp){alert('Invalid OTP. Please check and try again.');state.loading=false;render();return}const{data:n,error:a}=await supabase.from('photos').select('*').eq('album_id',state.albumIdToView).order('created_at',{ascending:true});if(a)throw a;state.currentAlbum={...e,photos:n.map(e=>e.photo_data)};state.isVerified=true;state.view='view';state.loading=false;render();setTimeout(setupProtection,100);}catch(e){console.error('Verify error:',e);alert('Failed to verify album: '+e.message);state.loading=false;render()}}
+            if(!verifyFormComplete){alert('Please enter a valid Album ID and a 6-digit OTP.');return}
+            state.loading=true;render();
+            try{
+                const{data:e,error:t}=await supabase.from('albums').select('*').eq('id',state.albumIdToView).single();
+                if(t||!e){alert('Album not found. Please check your Album ID.');state.loading=false;render();return}
+                if(Date.now()>e.otp_expiry){alert('OTP has expired. Please contact the album owner to regenerate it.');state.loading=false;render();return}
+                if(e.otp!==state.viewerOtp){alert('Invalid OTP. Please check and try again.');state.loading=false;render();return}
+                
+                const{data:n,error:a}=await supabase.from('photos').select('*').eq('album_id',state.albumIdToView).order('created_at',{ascending:true});
+                if(a)throw a;
+                
+                state.currentAlbum={...e,photos:n.map(e=>e.photo_data)};
+                state.isVerified=true;
+                state.view='view';
+                state.loading=false;
+                render();
+                setTimeout(setupProtection,100);
+            }catch(e){
+                console.error('Verify error:',e);
+                alert('Failed to verify album: '+e.message);
+                state.loading=false;
+                render();
+            }
+        }
         
         async function delPhoto(e){
             if(!confirm('Are you sure you want to delete this photo?'))return;state.loading=true;render();try{const{data:t,error:n}=await supabase.from('photos').select('id').eq('album_id',state.currentAlbum.id).order('created_at',{ascending:true});if(n)throw n;if(t.length===1){if(confirm('This is the last photo. Delete the entire album?')){await delAlbum();return}else{state.loading=false;render();return}}const a=t[e],{error:o}=await supabase.from('photos').delete().eq('id',a.id);if(o)throw o;state.currentAlbum.photos=state.currentAlbum.photos.filter((t,n)=>n!==e);state.loading=false;alert('Photo deleted successfully');render()}catch(e){console.error('Delete error:',e);alert('Failed to delete photo: '+e.message);state.loading=false;render()}}
@@ -578,7 +627,7 @@
             const uploadButtonClass = uploadFormComplete ? 'btn-gradient-purple hover:bg-purple-700' : 'btn-disabled';
 
             return `
-                <div class="max-w-3xl mx-auto pt-8">
+                <div class="max-w-3xl mx-auto pt-24 min-h-screen">
                     <h2 class="text-3xl font-extrabold text-white mb-6 border-b border-gray-700 pb-3">Create New Secured Album</h2>
                     
                     <div class="bg-gray-800 p-6 rounded-xl card-shadow mb-8">
@@ -640,13 +689,70 @@
                 </div>
             `;
         }
+        
+        function renderManageInputView() {
+            const manageButtonClass = manageFormComplete ? 'bg-orange-600 hover:bg-orange-700' : 'btn-disabled';
+
+            return `
+                <div class="max-w-xl mx-auto pt-24 min-h-screen">
+                    <h2 class="text-3xl font-extrabold text-white mb-6 border-b border-gray-700 pb-3 text-center">Manage Existing Album</h2>
+                    <div class="bg-gray-800 p-6 rounded-xl card-shadow mb-8 border border-orange-500">
+                        <h3 class="text-xl font-bold text-orange-400 mb-4">Enter Uploader Email</h3>
+                        <p class="text-gray-400 text-sm mb-4">Please enter the email address used to create the album to access management controls.</p>
+                        <div class="space-y-4">
+                            <div>
+                                <label for="manage-email" class="block text-sm font-medium text-gray-400">Your Email</label>
+                                <input type="email" id="manage-email" oninput="updateManageEmail(this)" value="${state.manageEmail}"
+                                    class="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-3 text-white focus:ring-orange-500 focus:border-orange-500" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="manageAlbum()" ${manageFormComplete ? '' : 'disabled'}
+                        class="w-full ${manageButtonClass} text-white py-4 rounded-xl font-semibold text-lg transition-all duration-300">
+                        Search & Load Album
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderViewerInputView() {
+            const verifyButtonClass = verifyFormComplete ? 'bg-green-600 hover:bg-green-700' : 'btn-disabled';
+
+            return `
+                <div class="max-w-xl mx-auto pt-24 min-h-screen">
+                    <h2 class="text-3xl font-extrabold text-white mb-6 border-b border-gray-700 pb-3 text-center">View Secured Album</h2>
+                    <div class="bg-gray-800 p-6 rounded-xl card-shadow mb-8 border border-green-500">
+                        <h3 class="text-xl font-bold text-green-400 mb-4">Enter Access Details</h3>
+                        <p class="text-gray-400 text-sm mb-4">Enter the Album ID and the One-Time Passcode (OTP) provided by the sender.</p>
+                        <div class="space-y-4">
+                            <div>
+                                <label for="album-id-view" class="block text-sm font-medium text-gray-400">Album ID / Link</label>
+                                <input type="text" id="album-id-view" oninput="updateAlbumId(this)" value="${state.albumIdToView}"
+                                    class="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-3 text-white focus:ring-green-500 focus:border-green-500" placeholder="e.g., album_xxxxxxxxx" required>
+                            </div>
+                            <div>
+                                <label for="viewer-otp" class="block text-sm font-medium text-gray-400">One-Time Passcode (OTP)</label>
+                                <input type="text" id="viewer-otp" oninput="updateViewerOtp(this)" value="${state.viewerOtp}"
+                                    class="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-3 text-2xl font-mono text-center text-white focus:ring-green-500 focus:border-green-500" maxlength="6" placeholder="e.g., 123456" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="verify()" ${verifyFormComplete ? '' : 'disabled'}
+                        class="w-full ${verifyButtonClass} text-white py-4 rounded-xl font-semibold text-lg transition-all duration-300">
+                        Verify & View Photos
+                    </button>
+                </div>
+            `;
+        }
 
         function renderHomeView() {
             return `
-            <div class="min-h-screen pt-14">
+            <div class="min-h-screen pt-10">
                 <div class="max-w-6xl mx-auto px-4">
 
-                    <div class="text-center mb-14">
+                    <div class="text-center mb-10 p-6 rounded-xl">
                         <svg class="w-16 h-16 text-purple-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
@@ -679,7 +785,7 @@
                         </p>
                     </div>
 
-                    <div class="grid md:grid-cols-3 gap-8 mb-14">
+                    <div class="grid md:grid-cols-3 gap-6 mb-14">
                         ${actionCard(
                             'Upload Photos',
                             'purple',
@@ -736,7 +842,7 @@
                 : `<span class="text-green-400 font-bold">${formatTime(state.otpExpiry)} remaining</span>`;
 
             return `
-                <div class="max-w-6xl mx-auto px-4 pt-24">
+                <div class="max-w-6xl mx-auto px-4 pt-24 min-h-screen">
                     <div class="text-center mb-10">
                         <h2 class="text-4xl font-extrabold text-white mb-2">My Secured Album</h2>
                         <p class="text-xl text-gray-400">Created by ${state.currentAlbum.name} (${state.currentAlbum.email})</p>
@@ -929,8 +1035,14 @@
                     case 'upload':
                         content += renderUploadView();
                         break;
+                    case 'manage': // Added new input view for manage
+                        content += renderManageInputView();
+                        break;
                     case 'gallery':
                         content += renderGalleryView();
+                        break;
+                    case 'viewer': // Added new input view for viewer
+                        content += renderViewerInputView();
                         break;
                     case 'view':
                         content += renderViewerView();
@@ -943,7 +1055,15 @@
                 }
             }
 
-            content += renderFooter();
+            // The footer is outside the switch block to ensure it's always rendered (part of renderFooter())
+            // content += renderFooter(); // Removed as it is outside the app div in the original structure, but the original structure puts it *inside* the main app div. I will put it back inside if the structure is not correct.
+            
+            // Re-adding renderFooter inside the main content flow as in the original code's structure
+            if (state.view !== 'home' && state.view !== 'view' && state.view !== 'upload' && state.view !== 'manage' && state.view !== 'viewer' && state.view !== 'gallery' && state.view !== 'terms') {
+                 // For all other cases, or if not loading, the view function should include the footer if needed. 
+                 // The view functions for home, upload, manage, viewer, gallery, and terms are designed to be full-page and will include the footer if necessary.
+            }
+            
             app.innerHTML = content;
             
             // Render Lightbox on top of everything if active
@@ -963,7 +1083,7 @@
             
             if (albumId) {
                 state.albumIdToView = albumId;
-                state.homeTab = 'viewer';
+                state.view = 'viewer'; // Correctly sets state.view to the new input view
             }
             render();
         }
