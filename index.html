@@ -5,147 +5,532 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Amanah - Secure marriage profile photo sharing with OTP protection by Syed Rashad">
     <title>Amanah - Secure Photo Sharing</title>
-
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
+    
     <style>
         .card-shadow {
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
         }
         .btn-gradient-purple {
-            background: linear-gradient(135deg,#a855f7,#9333ea);
-            transition: all .3s ease;
+            background: linear-gradient(135deg, #a855f7, #9333ea);
+            transition: all 0.3s ease;
         }
         .btn-gradient-purple:hover {
-            background: linear-gradient(135deg,#9333ea,#7e22ce);
+            background: linear-gradient(135deg, #9333ea, #7e22ce);
             transform: translateY(-1px);
         }
+        
+        .secure-image-container {
+            position: relative;
+            display: inline-block;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        .watermark-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            white-space: nowrap;
+            font-size: 3vw;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.1);
+            pointer-events: none;
+            user-select: none;
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+        }
+        
+        .btn-disabled {
+            background-color: #6b7280;
+            cursor: not-allowed;
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .screenshot-block-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        
+        .screenshot-block-overlay.active {
+            display: flex;
+        }
+
         body {
-            -webkit-user-select:none;
-            user-select:none;
+            -webkit-user-select: none; 
+            -moz-user-select: none; 
+            -ms-user-select: none; 
+            user-select: none;
         }
     </style>
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-YPHFTQYLE1"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-YPHFTQYLE1');
+    </script>
 </head>
-
-<body class="bg-gray-900 text-gray-200">
-<div id="app"></div>
-
-<script>
-/* ================= EXISTING CODE UNTOUCHED ================= */
-/* SUPABASE + STATE + SECURITY CODE EXACTLY AS YOU SENT */
-/* (intentionally omitted here for brevity explanation-wise, but
-   in your actual copy, keep EVERYTHING exactly the same above render functions) */
-/* ========================================================== */
-
-/* ================= UPDATED HOME VIEW ================= */
-
-function renderHomeView() {
-    return `
-    <div class="min-h-screen pt-14">
-        <div class="max-w-6xl mx-auto px-4">
-
-            <!-- HERO -->
-            <div class="text-center mb-14">
-                <svg class="w-16 h-16 text-purple-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944
-                    a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9
-                    c0 5.591 3.824 10.29 9 11.622
-                    5.176-1.332 9-6.03 9-11.622
-                    0-1.042-.133-2.052-.382-3.016z"/>
-                </svg>
-
-                <h1 class="text-5xl font-extrabold text-white mb-3 tracking-tight">
-                    Amanah
-                </h1>
-
-                <p class="text-xl text-gray-300 mb-3">
-                    Share Marriage Photos Without Losing Control
-                </p>
-
-                <p class="text-md text-gray-400 max-w-2xl mx-auto leading-relaxed">
-                    Once a marriage photo is shared on WhatsApp, it gets forwarded, saved,
-                    judged, and stored forever — often without consent.
-                    <br><br>
-                    Amanah exists to stop that.
-                </p>
-            </div>
-
-            <!-- PROBLEM STATEMENT -->
-            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 mb-12 max-w-4xl mx-auto">
-                <h2 class="text-xl font-bold text-white mb-3 text-center">
-                    The Problem Nobody Talks About
-                </h2>
-                <p class="text-gray-400 text-sm leading-relaxed text-center">
-                    Matrimonial photos are private by nature — yet they’re routinely
-                    circulated across families, brokers, WhatsApp groups, and unknown devices.
-                    <br><br>
-                    Once shared, you lose visibility, consent, and control.
-                    Amanah restores that control.
-                </p>
-            </div>
-
-            <!-- ACTION CARDS -->
-            <div class="grid md:grid-cols-3 gap-8 mb-14">
-                ${actionCard(
-                    'Upload Photos',
-                    'purple',
-                    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>',
-                    '<p>• Upload marriage photos securely</p><p>• Get OTP-protected access</p><p>• Retain full ownership</p>',
-                    'Start New Upload',
-                    "nav('upload')"
-                )}
-
-                ${actionCard(
-                    'Manage Access',
-                    'orange',
-                    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0"/>',
-                    '<p>• Regenerate or expire OTP</p><p>• Delete photos anytime</p><p>• Immediate access revocation</p>',
-                    'Manage Album',
-                    "nav('manage')"
-                )}
-
-                ${actionCard(
-                    'View Photos',
-                    'green',
-                    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0"/>',
-                    '<p>• OTP required</p><p>• No downloads</p><p>• No screenshots allowed</p>',
-                    'View Album',
-                    "nav('viewer')"
-                )}
-            </div>
-
-            <!-- WHO IT IS FOR -->
-            <div class="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-4xl mx-auto mb-16">
-                <h3 class="text-lg font-bold text-white mb-4 text-center">
-                    Who Amanah Is For — And Who It’s Not
-                </h3>
-                <div class="grid md:grid-cols-2 gap-6 text-sm text-gray-400">
-                    <div>
-                        <p class="font-semibold text-green-400 mb-2">✔ For</p>
-                        <ul class="space-y-1">
-                            <li>• Families sharing marriage proposals</li>
-                            <li>• Individuals who value dignity & consent</li>
-                            <li>• Private, intentional sharing</li>
-                        </ul>
-                    </div>
-                    <div>
-                        <p class="font-semibold text-red-400 mb-2">✖ Not For</p>
-                        <ul class="space-y-1">
-                            <li>• Public photo distribution</li>
-                            <li>• Brokers spreading photos in bulk</li>
-                            <li>• Casual or uncontrolled sharing</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-        ${renderFooter()}
+<body class="bg-gray-900 text-gray-200" oncopy="return false;" oncut="return false;">
+    
+    <div id="screenshot-block-overlay" class="screenshot-block-overlay">
+        <svg class="w-24 h-24 text-red-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+        <h2 class="text-2xl font-bold text-white mb-2">⚠️ Screenshot Detected</h2>
+        <p class="text-gray-300 text-center px-4">Screenshots are prohibited. You will be logged out shortly.</p>
     </div>
-    `;
-}
-</script>
-</body>
-</html>
+
+    <div id="app"></div>
+    
+    <script>
+        const SUPABASE_URL = 'https://imiljivxosyrcosznklh.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltaWxqaXZ4b3N5cmNvc3pua2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxMTIwOTcsImV4cCI6MjA3OTY4ODA5N30.TOgeuC3-RdG2ywIxDz2NWRhLHI4gxTkG4pilaZBqhso';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        let visibilityChangeCount = 0;
+        let lastVisibilityChange = 0;
+        let protectionActive = false;
+
+        let state = {
+            view: 'home',
+            homeTab: 'upload', 
+            currentAlbum: null,
+            uploaderInfo: { name: '', email: '' },
+            photos: [],
+            shareLink: '',
+            otp: '',
+            otpExpiry: null,
+            viewerOtp: '',
+            albumIdToView: '',
+            isVerified: false,
+            loading: false,
+            lightboxIndex: null,
+            manageEmail: '',
+            termsAccepted: false,
+            screenshotAttempts: 0 
+        };
+        
+        function genOTP(){return Math.floor(100000+Math.random()*900000).toString()}
+        function genAlbumId(){return'album_'+Math.random().toString(36).substr(2,9)}
+        function formatTime(e){const r=e-Date.now(),t=Math.floor(r/36e5),n=Math.floor(r%36e5/6e4);return t+'h '+n+'m'}
+        
+        function actionCard(title, color, svgPath, text, buttonText, action) {
+            return `
+                <div class="bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-700 hover:border-${color}-500 transition-all duration-300">
+                    <div class="flex items-center mb-4">
+                        <svg class="w-8 h-8 text-${color}-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">${svgPath}</svg>
+                        <h3 class="text-xl font-bold text-white">${title}</h3>
+                    </div>
+                    <div class="text-gray-400 space-y-2 mb-6 text-sm">${text}</div>
+                    <button onclick="${action}" class="w-full bg-${color}-600 text-white py-3 rounded-lg font-semibold transition-all duration-300 hover:bg-${color}-700">
+                        ${buttonText}
+                    </button>
+                </div>
+            `;
+        }
+
+        function nav(e){
+            protectionActive=false;
+            state.view=e;
+            if(e==='home'||e==='upload'||e==='manage'||e==='viewer'){
+                state.photos=[];
+                state.uploaderInfo={name:'',email:''};
+                state.currentAlbum=null;
+                state.isVerified=false;
+                state.viewerOtp='';
+                state.albumIdToView='';
+                state.lightboxIndex=null;
+                state.manageEmail='';
+                state.screenshotAttempts=0;
+                window.history.pushState({},document.title,location.pathname)
+            }
+            render()
+        }
+        
+        function toggleTerms(checkbox) {
+            state.termsAccepted = checkbox.checked;
+            checkUploadFormComplete(); 
+            render();
+        }
+        
+        let uploadFormComplete = false;
+        
+        function checkUploadFormComplete() {
+            const isComplete = !!state.uploaderInfo.name && !!state.uploaderInfo.email && state.photos.length > 0 && state.termsAccepted;
+            if (isComplete !== uploadFormComplete) {
+                uploadFormComplete = isComplete;
+                render();
+            }
+        }
+        
+        function updateUploaderName(input) {
+            state.uploaderInfo.name = input.value;
+            checkUploadFormComplete();
+        }
+
+        function updateUploaderEmail(input) {
+            state.uploaderInfo.email = input.value;
+            checkUploadFormComplete();
+        }
+
+        let verifyFormComplete = false;
+        
+        function checkVerifyFormComplete() {
+            const isComplete = !!state.albumIdToView && !!state.viewerOtp;
+            if (isComplete !== verifyFormComplete) {
+                verifyFormComplete = isComplete;
+                render();
+            }
+        }
+
+        function updateAlbumId(input) {
+            state.albumIdToView = input.value;
+            checkVerifyFormComplete();
+        }
+
+        function updateViewerOtp(input) {
+            state.viewerOtp = input.value;
+            checkVerifyFormComplete();
+        }
+        
+        let manageFormComplete = false;
+        
+        function checkManageFormComplete() {
+            const isComplete = !!state.manageEmail;
+            if (isComplete !== manageFormComplete) {
+                manageFormComplete = isComplete;
+                render();
+            }
+        }
+
+        function updateManageEmail(input) {
+            state.manageEmail = input.value;
+            checkManageFormComplete();
+        }
+
+        function scrambleCanvasPixels() {
+            const photoIndex = state.lightboxIndex !== null ? state.lightboxIndex : 0;
+            const canvas = document.getElementById(`secure-photo-${photoIndex}`);
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = Math.random() > 0.5 ? 'rgba(0,0,0,1)' : 'rgba(255,255,255,1)'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
+            ctx.font = 'bold 300px Arial'; 
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('ACCESS DENIED', canvas.width / 2, canvas.height / 2);
+            ctx.restore();
+
+            console.log('⚡ Canvas Scrambled!');
+        }
+
+        function handleScreenshotAttempt() {
+            state.screenshotAttempts++;
+            scrambleCanvasPixels();
+            
+            const overlay = document.getElementById('screenshot-block-overlay');
+            if (overlay) {
+                overlay.classList.add('active');
+                
+                console.warn('Screenshot attempt detected:', {
+                    album: state.currentAlbum?.id,
+                    timestamp: new Date().toISOString(),
+                    attemptNumber: state.screenshotAttempts
+                });
+
+                setTimeout(() => {
+                    nav('home');
+                    alert('You have been logged out due to unauthorized screen capture attempt. This incident has been logged.');
+                }, 1000); 
+            }
+        }
+
+        function showScreenshotWarning() {
+            alert('⚠️ Screenshots and screen recording are strictly prohibited!\n\nThis action has been logged and may result in restricted access.');
+            state.screenshotAttempts++;
+            
+            if (state.screenshotAttempts >= 2) { 
+                handleScreenshotAttempt();
+            }
+        }
+        
+        function setupProtection() {
+            if (protectionActive) return;
+            protectionActive = true;
+
+            const viewerContent = document.getElementById('viewer-content-area');
+            const overlay = document.getElementById('screenshot-block-overlay');
+            if (!viewerContent || !overlay) return;
+
+            console.log('🔒 Enhanced protection activated');
+
+            const contextMenuBlocker = e => { 
+                e.preventDefault(); 
+                showScreenshotWarning();
+            };
+            
+            const keyBlocker = e => {
+                if (e.keyCode === 123 || e.key === 'PrintScreen' || 
+                    (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4' || e.key === '5')) ||
+                    (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J')) ||
+                    (e.ctrlKey && e.key === 'p')) {
+                    e.preventDefault();
+                    handleScreenshotAttempt(); 
+                }
+            };
+            
+            document.addEventListener('contextmenu', contextMenuBlocker);
+            document.addEventListener('keydown', keyBlocker);
+
+            const handleVisibilityChange = () => {
+                const now = Date.now();
+                const timeSinceLastChange = now - lastVisibilityChange;
+                
+                if (document.visibilityState === 'hidden') {
+                    if (timeSinceLastChange < 1500 && timeSinceLastChange > 50) { 
+                        visibilityChangeCount++;
+                        
+                        if (visibilityChangeCount >= 2) {
+                            handleScreenshotAttempt();
+                        }
+                    } else {
+                        visibilityChangeCount = 1;
+                    }
+                    lastVisibilityChange = now;
+                } else if (document.visibilityState === 'visible') {
+                    setTimeout(() => { visibilityChangeCount = 0; }, 3000); 
+                }
+            };
+
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+
+            let blurStartTime = 0;
+            
+            window.addEventListener('blur', () => {
+                blurStartTime = Date.now();
+            });
+
+            window.addEventListener('focus', () => {
+                if (blurStartTime > 0) {
+                    const blurDuration = Date.now() - blurStartTime;
+                    
+                    if (blurDuration < 500 && blurDuration > 50) {
+                        handleScreenshotAttempt(); 
+                    }
+                    blurStartTime = 0;
+                }
+            });
+        }
+        
+        function drawPhotoOnCanvas(canvasId, photoData, watermarkText) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            img.onload = () => {
+                const ratio = img.height / img.width;
+                const canvasWidth = canvas.clientWidth;
+                const canvasHeight = canvasWidth * ratio;
+                
+                canvas.width = img.width;
+                canvas.height = img.height;
+                canvas.style.height = `${canvasHeight}px`;
+
+                ctx.drawImage(img, 0, 0, img.width, img.height);
+                
+                ctx.save();
+                ctx.globalAlpha = 0.15;
+                ctx.fillStyle = 'white';
+                
+                const watermarkSize = Math.max(250, canvas.width / 8);
+                ctx.font = `bold ${watermarkSize}px Arial`; 
+                
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                
+                ctx.translate(centerX, centerY);
+                ctx.rotate(-45 * Math.PI / 180);
+                
+                ctx.fillText(watermarkText || 'Amanah Secured', 0, 0);
+                
+                ctx.globalAlpha = 0.10; 
+                ctx.fillStyle = 'black';
+                ctx.fillText(watermarkText || 'Amanah Secured', 5, 5);
+
+                ctx.restore();
+            };
+            img.src = photoData;
+        }
+
+        function createShareMessage() {
+            const albumName = state.currentAlbum ? state.currentAlbum.name : 'Secured Photos';
+            const link = state.shareLink;
+            const otp = state.otp;
+            return `*--- Amanah Secure Photo Share ---*\nHello, here is the link to view the photo album for *${albumName}*.\n\n🔒 *Album Access Details:*\n- *Share Link:* ${link}\n- *One-Time Passcode (OTP):* ${otp}\n\n*Instructions:* Tap the link, then enter the OTP to view the secured photos. The access is valid for 24 hours.\n\nRegards,\n${state.currentAlbum.name}`.trim();
+        }
+
+        function copyText() {
+            navigator.clipboard.writeText(createShareMessage());
+            alert('Shareable link & OTP copied to clipboard!');
+        }
+        
+        function copyOtp() {
+            navigator.clipboard.writeText(state.otp);
+            alert('OTP copied to clipboard!');
+        }
+
+        function copyLink() {
+            navigator.clipboard.writeText(state.shareLink);
+            alert('Shareable link copied to clipboard!');
+        }
+
+        function shareViaWhatsApp() {
+            const message = createShareMessage();
+            const encodedMessage = encodeURIComponent(message);
+            window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
+        }
+
+        function openLightbox(index){state.lightboxIndex=index;render();setTimeout(setupProtection,100);}
+        function closeLightbox(){state.lightboxIndex=null;render();}
+        function nextPhoto(){if(state.lightboxIndex<state.currentAlbum.photos.length-1){state.lightboxIndex++;render();setTimeout(setupProtection,100);}}
+        function prevPhoto(){if(state.lightboxIndex>0){state.lightboxIndex--;render();setTimeout(setupProtection,100);}}
+        
+        function handleFiles(e){
+            const t=Array.from(e.target.files);
+            Promise.all(t.map(e=>new Promise(t=>{
+                const n=new FileReader();
+                n.onload=e=>t(e.target.result);
+                n.readAsDataURL(e)
+            }))).then(e=>{
+                state.photos=[...state.photos,...e].slice(0, 10);
+                checkUploadFormComplete();
+                render()
+            })
+        }
+        
+        async function manageAlbum(){ 
+            if(!state.manageEmail){alert('Please enter your email');return}state.loading=true;render();try{const{data:albums,error}=await supabase.from('albums').select('*').eq('email',state.manageEmail.trim().toLowerCase());if(error)throw error;if(!albums||albums.length===0){alert('No albums found with this email address.');state.loading=false;render();return}const album=albums[0];const{data:photos}=await supabase.from('photos').select('*').eq('album_id',album.id).order('created_at',{ascending:true});state.currentAlbum={...album,photos:photos.map(p=>p.photo_data)};state.otp=album.otp;state.otpExpiry=album.otp_expiry;state.shareLink=location.origin+location.pathname+'?album='+album.id;state.view='gallery';state.loading=false;render()}catch(e){console.error('Manage error:',e);alert('Failed to load albums: '+e.message);state.loading=false;render()}}
+        
+        async function upload(){
+            if (!state.termsAccepted) {
+                alert('You must accept the Terms & Conditions before creating an album.');
+                return;
+            }
+            if(!state.uploaderInfo.name||!state.uploaderInfo.email||!state.photos.length){alert('Please fill all required fields and upload at least one photo');return}state.loading=true;render();try{const e=genAlbumId(),t=genOTP(),n=Date.now()+864e5,{data:a,error:o}=await supabase.from('albums').insert({id:e,name:state.uploaderInfo.name,email:state.uploaderInfo.email.trim().toLowerCase(),otp:t,otp_expiry:n,created_at:Date.now()}).select().single();if(o)throw o;const{error:r}=await supabase.from('photos').insert(state.photos.map(t=>({album_id:e,photo_data:t})));if(r)throw r;const{data:s,error:i}=await supabase.from('photos').select('*').eq('album_id',e).order('created_at',{ascending:true});if(i)throw i;state.currentAlbum={...a,photos:s.map(e=>e.photo_data)};state.otp=t;state.otpExpiry=n;state.shareLink=location.origin+location.pathname+'?album='+e;state.view='gallery';state.loading=false;render()}catch(e){console.error('Upload error:',e);alert('Failed to create album: '+e.message);state.loading=false;render()}}
+
+        async function regenOTP(){
+            if(!state.currentAlbum)return;
+            state.loading=true;
+            render();
+            try{
+                const e=genOTP();
+                const t=Date.now()+864e5; 
+                
+                const {error:n}=await supabase.from('albums').update({
+                    otp:e,
+                    otp_expiry:t
+                }).eq('id',state.currentAlbum.id);
+
+                if(n)throw n;
+                
+                state.currentAlbum.otp=e;
+                state.otp=e;
+                state.otpExpiry=t;
+                state.loading=false;
+                alert('New OTP generated successfully! Access is now valid for the next 24 hours.');
+                render();
+            }catch(e){
+                console.error('OTP error:',e);
+                alert('Failed to regenerate OTP: '+e.message);
+                state.loading=false;
+                render();
+            }
+        }
+        
+        async function expireOTP(){
+            if(!state.currentAlbum)return;if(!confirm('Expire OTP now? This will immediately block all access to your album.'))return;state.loading=true;render();try{const e=Date.now()-1000,{error:t}=await supabase.from('albums').update({otp_expiry:e}).eq('id',state.currentAlbum.id);if(t)throw t;state.currentAlbum.otp_expiry=e;state.otpExpiry=e;state.loading=false;alert('OTP expired successfully! No one can access this album now.');render()}catch(e){console.error('Expire OTP error:',e);alert('Failed to expire OTP: '+e.message);state.loading=false;render()}}
+        
+        async function verify(){
+            if(!state.albumIdToView||!state.viewerOtp){alert('Please enter both Album ID and OTP');return}state.loading=true;render();try{const{data:e,error:t}=await supabase.from('albums').select('*').eq('id',state.albumIdToView).single();if(t||!e){alert('Album not found. Please check your Album ID.');state.loading=false;render();return}if(Date.now()>e.otp_expiry){alert('OTP has expired. Please contact the album owner to regenerate it.');state.loading=false;render();return}if(e.otp!==state.viewerOtp){alert('Invalid OTP. Please check and try again.');state.loading=false;render();return}const{data:n,error:a}=await supabase.from('photos').select('*').eq('album_id',state.albumIdToView).order('created_at',{ascending:true});if(a)throw a;state.currentAlbum={...e,photos:n.map(e=>e.photo_data)};state.isVerified=true;state.view='view';state.loading=false;render();setTimeout(setupProtection,100);}catch(e){console.error('Verify error:',e);alert('Failed to verify album: '+e.message);state.loading=false;render()}}
+        
+        async function delPhoto(e){
+            if(!confirm('Are you sure you want to delete this photo?'))return;state.loading=true;render();try{const{data:t,error:n}=await supabase.from('photos').select('id').eq('album_id',state.currentAlbum.id).order('created_at',{ascending:true});if(n)throw n;if(t.length===1){if(confirm('This is the last photo. Delete the entire album?')){await delAlbum();return}else{state.loading=false;render();return}}const a=t[e],{error:o}=await supabase.from('photos').delete().eq('id',a.id);if(o)throw o;state.currentAlbum.photos=state.currentAlbum.photos.filter((t,n)=>n!==e);state.loading=false;alert('Photo deleted successfully');render()}catch(e){console.error('Delete error:',e);alert('Failed to delete photo: '+e.message);state.loading=false;render()}}
+        
+        async function delAlbum(){
+            if(!confirm('Are you sure you want to delete this entire album? This action cannot be undone.'))return;state.loading=true;render();try{const{error:e}=await supabase.from('albums').delete().eq('id',state.currentAlbum.id);if(e)throw e;state.view='home';state.currentAlbum=null;state.loading=false;alert('Album deleted successfully');render()}catch(e){console.error('Delete error:',e);alert('Failed to delete album: '+e.message);state.loading=false;render()}}
+
+        function renderFooter(){ 
+            return `
+                <footer class="bg-gray-900 border-t border-gray-700 text-gray-500 mt-16">
+                    <div class="max-w-6xl mx-auto px-4 py-8">
+                        <div class="grid md:grid-cols-4 gap-8">
+                            <div class="md:col-span-2">
+                                <h3 class="text-lg font-bold mb-4 text-purple-400 flex items-center">
+                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    About Amanah
+                                </h3>
+                                <p class="text-sm text-gray-400 mb-3 leading-relaxed">
+                                   Amanah is a secure, closed photo-sharing platform with complete control over access and visibility. — built to prevent uncontrolled forwarding, misuse, and endless circulation. Every photo is shared with clear consent, control, and accountability, so it reaches only the intended recipient.
+                                   Rooted in the values of trust, dignity, and responsible usage, Amanah enables intentional photo sharing where the sender remains in control at all times.
+                                </p>
+                                <p class="text-xs text-gray-500 leading-relaxed mb-4">
+                                   Amanah is founded by Syed Rashad, a Bangalore-based startup enthusiast with hands-on experience in building customer-first, compliant systems. Shaped by personal experience and real-world gaps, Amanah is a founder-led initiative focused on building trust-first products that solve problems that truly matter.
+                                </p>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold mb-4 text-purple-400">Legal & Security</h3>
+                                <ul class="space-y-2 text-sm">
+                                    <li class="text-red-400 font-semibold">⚠️ Cybercrime Warning</li>
+                                    <li><a href="#" onclick="nav('terms'); return false;" class="text-purple-300 hover:text-purple-100 underline">Terms & Conditions</a></li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold mb-4 text-purple-400">Contact</h3>
+                                <p class="text-sm text-gray-400 mb-2">Email:</p>
+                                <a href="mailto:help.amanahapp@gmail.com" class="text-purple-300 hover:text-purple-100 text-sm underline">help.amanahapp@gmail.com</a>
+                                <p class="text-sm text-gray-500 mt-4">© 2025 Amanah by Syed Rashad</p>
+                            </div>
+                        </div>
+                        <div class="border-t border-gray-800 mt-6 pt-6 text-center text-xs text-gray-600">أمانة - Trustworthy Protection</div>
+                    </div>
+                </footer>
+            `;
+        }
+
+        function renderLoading(){ 
+            return '<div class="fixed inset-0 bg-gray-900 bg-opacity-90 z-50 flex flex-col items-center justify-center"><div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-purple-500"></div><span class="mt-4 text-xl font-semibold text-gray-300">Processing secure request...</span></div>';
+        }
+
+        function renderHomeView() {
+            return `
+            <div class="min-h-screen pt-14">
+                <div class="max-w-6xl mx-auto px-4">
+                    <div class="text-center mb-14">
+                        <svg class="w-16 h-16 text-purple-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
