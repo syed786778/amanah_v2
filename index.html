@@ -643,94 +643,84 @@
 
         function renderHomeView() {
             return `
-            <div class="min-h-screen pt-24">
+            <div class="min-h-screen pt-14">
                 <div class="max-w-6xl mx-auto px-4">
+
                     <div class="text-center mb-14">
                         <svg class="w-16 h-16 text-purple-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                         </svg>
-                        <h2 class="text-5xl font-extrabold text-white mb-3">Amanah: <span class="text-purple-400">Trustworthy</span> Photo Sharing</h2>
-                        <p class="text-xl text-gray-400">Securely share your private photos with full control. Prevent screenshots, manage access, and ensure dignity.</p>
+
+                        <h1 class="text-5xl font-extrabold text-white mb-3 tracking-tight">
+                            Amanah
+                        </h1>
+
+                        <p class="text-xl text-gray-300 mb-3">
+                            Share Marriage Photos Without Losing Control
+                        </p>
+
+                        <p class="text-md text-gray-400 max-w-3xl mx-auto leading-relaxed">
+                            Once a marriage photo is shared on WhatsApp or email, it gets forwarded,
+                            saved, judged, and stored forever — often without consent.
+                            <br><br>
+                            Amanah exists to stop that.
+                        </p>
                     </div>
 
-                    <div class="grid md:grid-cols-3 gap-8 mb-12">
-                        <div class="md:col-span-1">
-                            <div class="flex flex-col h-full bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-700">
-                                <h3 class="text-2xl font-bold text-purple-400 mb-4 border-b border-gray-700 pb-2">I want to...</h3>
-                                <div class="flex space-x-2 border-b border-gray-700 mb-4 pb-4">
-                                    <button onclick="state.homeTab='upload'; render()" class="px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${state.homeTab === 'upload' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}">
-                                        Upload & Share
-                                    </button>
-                                    <button onclick="state.homeTab='viewer'; render()" class="px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${state.homeTab === 'viewer' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}">
-                                        View Album
-                                    </button>
-                                    <button onclick="state.homeTab='manage'; render()" class="px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${state.homeTab === 'manage' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}">
-                                        Manage
-                                    </button>
-                                </div>
-                                
-                                ${state.homeTab === 'upload' ? `
-                                    <div class="flex-grow">
-                                        <p class="text-gray-400 text-sm mb-4">Create a new secure album, upload your photos, and generate a unique OTP-protected link for sharing.</p>
-                                    </div>
-                                    <button onclick="nav('upload')" class="w-full btn-gradient-purple text-white py-3 rounded-lg font-semibold mt-auto">
-                                        Start Uploading
-                                    </button>
-                                ` : state.homeTab === 'viewer' ? `
-                                    <div class="flex-grow">
-                                        <p class="text-gray-400 text-sm mb-4">Enter the Album ID and the One-Time Passcode (OTP) you received to access the secure photos.</p>
-                                        <input type="text" placeholder="Enter Album ID" oninput="updateAlbumId(this)" value="${state.albumIdToView}"
-                                            class="mb-2 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white placeholder-gray-500 focus:ring-purple-500 focus:border-purple-500">
-                                        <input type="text" placeholder="Enter 6-digit OTP" oninput="updateViewerOtp(this)" value="${state.viewerOtp}" maxlength="6"
-                                            class="mb-4 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white placeholder-gray-500 focus:ring-purple-500 focus:border-purple-500">
-                                    </div>
-                                    <button onclick="verify()" ${verifyFormComplete ? '' : 'disabled'}
-                                        class="w-full ${verifyFormComplete ? 'btn-gradient-purple' : 'btn-disabled'} text-white py-3 rounded-lg font-semibold mt-auto">
-                                        View Secured Photos
-                                    </button>
-                                ` : `
-                                    <div class="flex-grow">
-                                        <p class="text-gray-400 text-sm mb-4">If you are the uploader, enter the email address you used to create the album to manage its sharing settings.</p>
-                                        <input type="email" placeholder="Your Uploader Email" oninput="updateManageEmail(this)" value="${state.manageEmail}"
-                                            class="mb-4 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white placeholder-gray-500 focus:ring-purple-500 focus:border-purple-500">
-                                    </div>
-                                    <button onclick="manageAlbum()" ${manageFormComplete ? '' : 'disabled'}
-                                        class="w-full ${manageFormComplete ? 'btn-gradient-purple' : 'btn-disabled'} text-white py-3 rounded-lg font-semibold mt-auto">
-                                        Manage Album
-                                    </button>
-                                `}
-                            </div>
-                        </div>
-
-                        <div class="md:col-span-2 space-y-8">
-                            ${actionCard(
-                                '🔒 OTP & Access Control',
-                                'green',
-                                '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2v5l-1 1h-5l-1-1v-5a2 2 0 012-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 21h4v-3h-4zM6 10h12v4H6zM12 4v2"/>',
-                                '<p>Every album is protected by a unique **One-Time Passcode (OTP)** that expires in 24 hours.</p><p>You can regenerate the OTP or expire it immediately, ensuring you maintain **full control**.</p>',
-                                'Learn More',
-                                "alert('OTP and access control is managed in the Manage Album section.')"
-                            )}
-                            ${actionCard(
-                                '🛡️ Screenshot Protection',
-                                'red',
-                                '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>',
-                                '<p>The viewer is secured with **advanced anti-screenshot mechanisms** for desktop and mobile.</p><p>Attempting to capture the screen will log the activity, scramble the image, and **immediately log out the viewer**.</p>',
-                                'See Terms',
-                                "nav('terms')"
-                            )}
-                            ${actionCard(
-                                '✨ Digital Watermarking',
-                                'yellow',
-                                '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14c-6.627 0-12-3.373-12-8s5.373-8 12-8 12 3.373 12 8-5.373 8-12 8z"/>',
-                                '<p>Photos are rendered on a secure canvas with a large, semi-transparent **watermark** showing the uploader\'s name.</p><p>This is a layered defence to deter photographic or physical capture of the screen.</p>',
-                                'View Example',
-                                "alert('The watermark is added dynamically on the viewing screen.')"
-                            )}
-                        </div>
+                    <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 mb-12 max-w-4xl mx-auto">
+                        <h2 class="text-xl font-bold text-white mb-3 text-center">
+                            Why Amanah Exists
+                        </h2>
+                        <p class="text-gray-400 text-sm leading-relaxed text-center">
+                            Matrimonial photos are meant to be shared with dignity and intention.
+                            Existing platforms enable uncontrolled forwarding and permanent storage.
+                            Amanah enforces consent, time-bound access, and accountability.
+                        </p>
                     </div>
+
+                    <div class="grid md:grid-cols-3 gap-8 mb-14">
+                        ${actionCard(
+                            'Upload Photos',
+                            'purple',
+                            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>',
+                            '<p>• Upload marriage photos securely</p><p>• OTP-protected access</p><p>• You stay in control</p>',
+                            'Start New Upload',
+                            "nav('upload')"
+                        )}
+
+                        ${actionCard(
+                            'Manage Access',
+                            'orange',
+                            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0"/>',
+                            '<p>• Regenerate or expire OTP</p><p>• Delete albums anytime</p><p>• Revoke access instantly</p>',
+                            'Manage Album',
+                            "nav('manage')"
+                        )}
+
+                        ${actionCard(
+                            'View Photos',
+                            'green',
+                            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0"/>',
+                            '<p>• OTP required</p><p>• No downloads</p><p>• Screenshots blocked</p>',
+                            'View Album',
+                            "nav('viewer')"
+                        )}
+                    </div>
+
+                    <div class="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-4xl mx-auto mb-16">
+                        <h3 class="text-lg font-bold text-white mb-4 text-center">
+                            Who Amanah Is (and Isn’t) For
+                        </h3>
+                        <p class="text-gray-400 text-sm leading-relaxed text-center">
+                            Amanah is built for families and individuals who value privacy,
+                            consent, and controlled sharing during the matrimonial process.
+                            It is not meant for public distribution or bulk sharing.
+                        </p>
+                    </div>
+
                 </div>
+                ${renderFooter()}
             </div>
             `;
         }
