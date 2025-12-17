@@ -1,222 +1,206 @@
-<!-- ONLY CHANGES ARE MARKED WITH 🔧 COMMENTS -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Amanah - Secure Photo Sharing</title>
+  <meta charset="UTF-8" />
+  <title>Amanah</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    <style>
-        body { user-select: none; background:#111827 }
-        .btn-disabled { opacity:.5; pointer-events:none }
-        .viewer-thumbnail { height:200px; background:#1f2937; display:flex; align-items:center; justify-content:center }
-        canvas { max-width:100%; max-height:100% }
-        .screenshot-block-overlay{position:fixed;inset:0;background:#000;z-index:9999;display:none;align-items:center;justify-content:center;color:#fff}
-        .screenshot-block-overlay.active{display:flex}
-    </style>
+  <style>
+    body { background:#0b1220; color:#e5e7eb }
+    .overlay {
+      position:fixed; inset:0; background:black;
+      display:none; align-items:center; justify-content:center;
+      z-index:9999; font-size:24px
+    }
+    .overlay.active { display:flex }
+    canvas { width:100%; height:auto }
+  </style>
 </head>
 
 <body>
-<div id="screenshot-block-overlay" class="screenshot-block-overlay">
-    <h2 class="text-2xl font-bold">⚠ Screenshot Detected</h2>
-</div>
-
+<div id="blocker" class="overlay">⚠ Screenshots not allowed</div>
 <div id="app"></div>
 
 <script>
-/* ---------------- CONFIG ---------------- */
+/* ================= CONFIG ================= */
 const supabase = window.supabase.createClient(
-    'https://imiljivxosyrcosznklh.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltaWxqaXZ4b3N5cmNvc3pua2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxMTIwOTcsImV4cCI6MjA3OTY4ODA5N30.TOgeuC3-RdG2ywIxDz2NWRhLHI4gxTkG4pilaZBqhso'
+  'https://imiljivxosyrcosznklh.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltaWxqaXZ4b3N5cmNvc3pua2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxMTIwOTcsImV4cCI6MjA3OTY4ODA5N30.TOgeuC3-RdG2ywIxDz2NWRhLHI4gxTkG4pilaZBqhso'
 );
 
-/* ---------------- STATE ---------------- */
-let state = {
-    view: 'home',
-    accessMode: null,          // 🔧 'owner' | 'viewer'
-    currentAlbum: null,
-    uploaderInfo: { name:'', email:'' },
-    photos: [],
-    otp: '',
-    otpExpiry: null,
-    shareLink: '',
-    viewerOtp: '',
-    albumIdToView: '',
-    loading: false,
-    lightboxIndex: null,
-    screenshotAttempts: 0
+/* ================= STATE ================= */
+const state = {
+  view: 'home',           // home | upload | viewer | gallery
+  mode: null,             // owner | viewer
+  uploader: { name:'', email:'' },
+  photos: [],
+  album: null,
+  otp: '',
+  otpExpiry: 0,
+  albumId: '',
+  viewerOtp: '',
+  shareLink: '',
+  loading: false,
+  screenshotCount: 0
 };
 
-/* ---------------- HELPERS ---------------- */
-const genOTP = () => Math.floor(100000+Math.random()*900000).toString();
-const genAlbumId = () => 'album_' + Math.random().toString(36).slice(2,9);
-const formatTime = t => {
-    const d = t - Date.now();
-    if (d <= 0) return 'Expired';
-    const m = Math.floor(d / 60000);
-    return m < 60 ? `${m}m` : `${Math.floor(m/60)}h`;
-};
+/* ================= HELPERS ================= */
+const genId = () => 'alb_' + Math.random().toString(36).slice(2,9);
+const genOtp = () => Math.floor(100000+Math.random()*900000).toString();
+const nav = v => { state.view=v; render(); };
 
-/* ---------------- NAV ---------------- */
-function nav(v){
-    state.view = v;
-    state.lightboxIndex = null;
-    render();
+function blockViewer() {
+  if (state.mode !== 'viewer') return;
+  state.screenshotCount++;
+  if (state.screenshotCount >= 2) {
+    document.getElementById('blocker').classList.add('active');
+    setTimeout(() => location.reload(), 1500);
+  }
 }
 
-/* ---------------- UPLOAD ---------------- */
-async function upload(){
-    if(!state.uploaderInfo.name || !state.uploaderInfo.email || !state.photos.length){
-        alert('Missing fields'); return;
-    }
-    state.loading=true; render();
+/* ================= UPLOAD ================= */
+async function uploadAlbum() {
+  if (!state.uploader.name || !state.uploader.email || !state.photos.length) {
+    alert('Missing info'); return;
+  }
 
-    const id = genAlbumId();
-    const otp = genOTP();
-    const expiry = Date.now() + 86400000;
+  const id = genId();
+  const otp = genOtp();
+  const expiry = Date.now() + 24*60*60*1000;
 
-    await supabase.from('albums').insert({
-        id, name: state.uploaderInfo.name,
-        email: state.uploaderInfo.email.toLowerCase(),
-        otp, otp_expiry: expiry
-    });
+  await supabase.from('albums').insert({
+    id,
+    name: state.uploader.name,
+    email: state.uploader.email.toLowerCase(),
+    otp,
+    otp_expiry: expiry
+  });
 
-    await supabase.from('photos').insert(
-        state.photos.map(p => ({ album_id:id, photo_data:p }))
-    );
+  await supabase.from('photos').insert(
+    state.photos.map(p => ({ album_id:id, photo_data:p }))
+  );
 
-    state.currentAlbum = { id, name: state.uploaderInfo.name, photos: state.photos };
-    state.otp = otp;
-    state.otpExpiry = expiry;
-    state.shareLink = location.origin + '?album=' + id;
-
-    state.accessMode = 'owner';       // 🔧 explicit
-    state.view = 'gallery';
-    state.loading=false;
-    render();
+  state.album = { id, name: state.uploader.name, photos: state.photos };
+  state.otp = otp;
+  state.otpExpiry = expiry;
+  state.shareLink = location.origin + location.pathname + '?album=' + id;
+  state.mode = 'owner';
+  state.view = 'gallery';
+  render();
 }
 
-/* ---------------- MANAGE ---------------- */
-async function manageAlbum(){
-    state.loading=true; render();
+/* ================= VERIFY ================= */
+async function verifyAlbum() {
+  const { data:album } = await supabase
+    .from('albums').select('*')
+    .eq('id', state.albumId).single();
 
-    const { data:album } = await supabase
-        .from('albums').select('*')
-        .eq('email', state.uploaderInfo.email.toLowerCase())
-        .single();
+  if (!album || album.otp !== state.viewerOtp || Date.now() > album.otp_expiry) {
+    alert('Invalid OTP'); return;
+  }
 
-    const { data:photos } = await supabase
-        .from('photos').select('*')
-        .eq('album_id', album.id)
-        .order('created_at');
+  const { data:photos } = await supabase
+    .from('photos').select('*')
+    .eq('album_id', album.id)
+    .order('created_at');
 
-    state.currentAlbum = { ...album, photos: photos.map(p=>p.photo_data) };
-    state.otp = album.otp;
-    state.otpExpiry = album.otp_expiry;
-    state.shareLink = location.origin + '?album=' + album.id;
-
-    state.accessMode = 'owner';       // 🔧 explicit
-    state.view = 'gallery';
-    state.loading=false;
-    render();
+  state.album = { ...album, photos: photos.map(p=>p.photo_data) };
+  state.mode = 'viewer';
+  state.view = 'gallery';
+  render();
 }
 
-/* ---------------- VERIFY (VIEWER) ---------------- */
-async function verify(){
-    state.loading=true; render();
+/* ================= RENDER ================= */
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${state.view === 'home' ? `
+      <div class="h-screen flex flex-col items-center justify-center">
+        <h1 class="text-5xl font-bold mb-8 text-purple-400">Amanah</h1>
+        <div>
+          <button onclick="nav('upload')" class="bg-purple-600 px-6 py-3 rounded mr-4">Create Album</button>
+          <button onclick="nav('viewer')" class="bg-gray-700 px-6 py-3 rounded">View Album</button>
+        </div>
+      </div>
+    ` : ''}
 
-    const { data:album } = await supabase
-        .from('albums').select('*')
-        .eq('id', state.albumIdToView)
-        .single();
-
-    if(Date.now() > album.otp_expiry || album.otp !== state.viewerOtp){
-        alert('Invalid or expired OTP');
-        state.loading=false; render(); return;
-    }
-
-    const { data:photos } = await supabase
-        .from('photos').select('*')
-        .eq('album_id', album.id)
-        .order('created_at');
-
-    state.currentAlbum = { ...album, photos: photos.map(p=>p.photo_data) };
-
-    state.accessMode = 'viewer';      // 🔧 explicit
-    state.view = 'gallery';
-    state.loading=false;
-    render();
-}
-
-/* ---------------- PROTECTION ---------------- */
-function setupProtection(){
-    if(state.accessMode !== 'viewer') return;   // 🔧 owner never blocked
-    document.addEventListener('contextmenu', e => {
-        e.preventDefault();
-        handleScreenshot();
-    });
-}
-function handleScreenshot(){
-    state.screenshotAttempts++;
-    if(state.screenshotAttempts >= 2){
-        document.getElementById('screenshot-block-overlay').classList.add('active');
-        setTimeout(()=>nav('home'),1000);
-    }
-}
-
-/* ---------------- RENDER ---------------- */
-function render(){
-    document.getElementById('app').innerHTML = `
-        ${state.loading ? '<p class="p-8 text-center">Loading…</p>' : ''}
-        ${state.view === 'home' ? `
-            <div class="p-12 text-center">
-                <h1 class="text-4xl font-bold text-purple-400">Amanah</h1>
-                <button onclick="nav('upload')" class="mt-6 bg-purple-600 px-6 py-3 rounded">Create Album</button>
-                <button onclick="nav('viewer')" class="ml-4 bg-gray-700 px-6 py-3 rounded">View Album</button>
-            </div>
-        ` : ''}
-
-        ${state.view === 'gallery' && state.currentAlbum ? `
-            <div class="p-8">
-                <h2 class="text-2xl mb-4">${state.currentAlbum.name}'s Album</h2>
-
-                ${state.accessMode === 'owner' ? `
-                    <div class="mb-6 p-4 bg-gray-800 rounded">
-                        <p>OTP: <strong>${state.otp}</strong></p>
-                        <p>Expires in: ${formatTime(state.otpExpiry)}</p>
-                        <p class="text-sm break-all">${state.shareLink}</p>
-                    </div>
-                ` : ''}
-
-                <div class="grid grid-cols-2 gap-4">
-                    ${state.currentAlbum.photos.map((_,i)=>`
-                        <div class="viewer-thumbnail">
-                            <canvas id="secure-photo-${i}"></canvas>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        ` : ''}
-    `;
-
-    if(state.view === 'gallery'){
-        setTimeout(()=>{
-            setupProtection();
-            state.currentAlbum.photos.forEach((p,i)=>{
-                const c=document.getElementById(`secure-photo-${i}`);
-                const ctx=c.getContext('2d');
-                const img=new Image();
-                img.onload=()=>{c.width=img.width;c.height=img.height;ctx.drawImage(img,0,0)};
-                img.src=p;
+    ${state.view === 'upload' ? `
+      <div class="max-w-xl mx-auto p-8">
+        <h2 class="text-2xl mb-4">Create Album</h2>
+        <input class="w-full mb-3 p-2 bg-gray-800" placeholder="Name"
+          oninput="state.uploader.name=this.value">
+        <input class="w-full mb-3 p-2 bg-gray-800" placeholder="Email"
+          oninput="state.uploader.email=this.value">
+        <input type="file" multiple accept="image/*" class="mb-4"
+          onchange="
+            [...this.files].forEach(f=>{
+              const r=new FileReader();
+              r.onload=e=>state.photos.push(e.target.result);
+              r.readAsDataURL(f);
             });
-        },50);
-    }
+          ">
+        <button onclick="uploadAlbum()" class="bg-purple-600 px-6 py-3 rounded">Create</button>
+        <button onclick="nav('home')" class="ml-4 text-gray-400">Cancel</button>
+      </div>
+    ` : ''}
+
+    ${state.view === 'viewer' ? `
+      <div class="max-w-md mx-auto p-8">
+        <h2 class="text-2xl mb-4">View Album</h2>
+        <input class="w-full mb-3 p-2 bg-gray-800" placeholder="Album ID"
+          oninput="state.albumId=this.value">
+        <input class="w-full mb-4 p-2 bg-gray-800" placeholder="OTP"
+          oninput="state.viewerOtp=this.value">
+        <button onclick="verifyAlbum()" class="bg-purple-600 px-6 py-3 rounded">View</button>
+        <button onclick="nav('home')" class="ml-4 text-gray-400">Cancel</button>
+      </div>
+    ` : ''}
+
+    ${state.view === 'gallery' && state.album ? `
+      <div class="p-8">
+        <h2 class="text-2xl mb-4">${state.album.name}'s Album</h2>
+
+        ${state.mode === 'owner' ? `
+          <div class="bg-gray-800 p-4 rounded mb-6">
+            <p><strong>OTP:</strong> ${state.otp}</p>
+            <p class="break-all text-sm">${state.shareLink}</p>
+          </div>
+        ` : ''}
+
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+          ${state.album.photos.map((p,i)=>`
+            <canvas id="img${i}"></canvas>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+  `;
+
+  if (state.view === 'gallery') {
+    document.oncontextmenu = e => { e.preventDefault(); blockViewer(); };
+    state.album.photos.forEach((src,i)=>{
+      const img=new Image();
+      img.onload=()=>{
+        const c=document.getElementById('img'+i);
+        c.width=img.width; c.height=img.height;
+        c.getContext('2d').drawImage(img,0,0);
+      };
+      img.src=src;
+    });
+  }
 }
 
-render();
+/* ================= INIT ================= */
+const q = new URLSearchParams(location.search);
+if (q.get('album')) {
+  state.albumId = q.get('album');
+  nav('viewer');
+} else {
+  render();
+}
 </script>
 </body>
 </html>
