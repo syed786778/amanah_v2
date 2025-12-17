@@ -123,7 +123,10 @@
             lightboxIndex: null,
             manageEmail: '',
             termsAccepted: false,
-            screenshotAttempts: 0 
+            screenshotAttempts: 0,
+            showReportModal: false,
+            reportReason: '',
+            reportDetails: ''
         };
         
         function genOTP(){return Math.floor(100000+Math.random()*900000).toString()}
@@ -462,6 +465,103 @@
         function closeLightbox(){state.lightboxIndex=null;render();}
         function nextPhoto(){if(state.lightboxIndex<state.currentAlbum.photos.length-1){state.lightboxIndex++;render();setTimeout(setupProtection,100);}}
         function prevPhoto(){if(state.lightboxIndex>0){state.lightboxIndex--;render();setTimeout(setupProtection,100);}}
+        
+        function openReportModal() {
+            state.showReportModal = true;
+            state.reportReason = '';
+            state.reportDetails = '';
+            render();
+        }
+        
+        function closeReportModal() {
+            state.showReportModal = false;
+            render();
+        }
+        
+        function updateReportReason(select) {
+            state.reportReason = select.value;
+        }
+        
+        function updateReportDetails(textarea) {
+            state.reportDetails = textarea.value;
+        }
+        
+        async function submitReport() {
+            if (!state.reportReason) {
+                alert('Please select a reason for reporting.');
+                return;
+            }
+            
+            state.loading = true;
+            render();
+            
+            try {
+                const reportData = {
+                    album_id: state.currentAlbum.id,
+                    uploader_name: state.currentAlbum.name,
+                    uploader_email: state.currentAlbum.email,
+                    report_reason: state.reportReason,
+                    report_details: state.reportDetails || 'No additional details provided',
+                    reported_at: new Date().toISOString(),
+                    reporter_ip: 'Not captured' // Could be enhanced with IP detection
+                };
+                
+                // Store report in database
+                const { error: dbError } = await supabase.from('reports').insert(reportData);
+                
+                if (dbError) {
+                    console.error('Database error:', dbError);
+                }
+                
+                // Send email notification to admin
+                const emailSubject = `🚨 URGENT: User Report - ${state.reportReason}`;
+                const emailBody = `
+AMANAH PLATFORM - USER REPORT ALERT
+
+Report Time: ${new Date().toLocaleString()}
+
+REPORTED ALBUM DETAILS:
+- Album ID: ${state.currentAlbum.id}
+- Uploader Name: ${state.currentAlbum.name}
+- Uploader Email: ${state.currentAlbum.email}
+
+REPORT DETAILS:
+- Reason: ${state.reportReason}
+- Additional Details: ${state.reportDetails || 'None provided'}
+
+RECOMMENDED ACTIONS:
+1. Review the album content immediately
+2. Contact the uploader at: ${state.currentAlbum.email}
+3. Consider suspending or removing the album
+4. Document this incident for compliance records
+
+This is an automated alert from the Amanah reporting system.
+                `.trim();
+                
+                // Using a simple mailto link approach (can be enhanced with email API)
+                const mailtoLink = `mailto:help.amanahapp@gmail.com?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+                
+                // Trigger email client
+                window.location.href = mailtoLink;
+                
+                state.loading = false;
+                state.showReportModal = false;
+                
+                alert('Thank you for your report. The platform administrator has been notified and will review this album immediately. Your report helps keep Amanah safe for everyone.');
+                
+                // Log out the user after reporting
+                setTimeout(() => {
+                    nav('home');
+                }, 2000);
+                
+                render();
+            } catch (error) {
+                console.error('Report error:', error);
+                alert('Failed to submit report. Please try again or contact help.amanahapp@gmail.com directly.');
+                state.loading = false;
+                render();
+            }
+        }
         
         function handleFiles(e){
             const maxPhotos = 4;
@@ -1059,6 +1159,14 @@
                         <p class="text-sm text-gray-500">Access expires in: ${otpStatus}</p>
                     </div>
 
+                    <!-- Report Button -->
+                    <div class="mb-6 flex justify-center">
+                        <button onclick="openReportModal()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg font-semibold transition-all duration-300 flex items-center shadow-lg">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                            Report Inappropriate Content
+                        </button>
+                    </div>
+
                     <h3 class="text-2xl font-bold text-white mb-4">Click to view photos (${state.currentAlbum.photos.length})</h3>
                     <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
                         ${photosHtml}
@@ -1137,6 +1245,64 @@
             `;
         }
 
+        function renderReportModal() {
+            if (!state.showReportModal) return '';
+            
+            return `
+                <div class="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4">
+                    <div class="bg-gray-800 rounded-xl max-w-2xl w-full p-8 shadow-2xl border-2 border-red-500">
+                        <div class="flex justify-between items-start mb-6">
+                            <div>
+                                <h3 class="text-3xl font-bold text-red-400 mb-2 flex items-center">
+                                    <svg class="w-8 h-8 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                    Report Content
+                                </h3>
+                                <p class="text-gray-400 text-sm">Help us keep Amanah safe by reporting inappropriate content</p>
+                            </div>
+                            <button onclick="closeReportModal()" class="text-gray-400 hover:text-white text-3xl">&times;</button>
+                        </div>
+                        
+                        <div class="space-y-6">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-300 mb-2">Reason for Reporting *</label>
+                                <select onchange="updateReportReason(this)" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                                    <option value="">-- Select a reason --</option>
+                                    <option value="Obscene or Inappropriate Images">Obscene or Inappropriate Images</option>
+                                    <option value="Spam or Misleading Content">Spam or Misleading Content</option>
+                                    <option value="Fake or Stolen Photos">Fake or Stolen Photos</option>
+                                    <option value="Harassment or Threatening Content">Harassment or Threatening Content</option>
+                                    <option value="Underage Individual">Underage Individual</option>
+                                    <option value="Violation of Privacy">Violation of Privacy</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-300 mb-2">Additional Details (Optional)</label>
+                                <textarea oninput="updateReportDetails(this)" rows="4" placeholder="Please provide any additional information that would help us investigate this report..." class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-red-500 focus:border-red-500"></textarea>
+                            </div>
+                            
+                            <div class="bg-yellow-900 bg-opacity-30 border border-yellow-600 rounded-lg p-4">
+                                <p class="text-yellow-300 text-sm flex items-start">
+                                    <svg class="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    <span><strong>Important:</strong> False reports may result in restricted access to Amanah. Please only report content that genuinely violates our terms of service.</span>
+                                </p>
+                            </div>
+                            
+                            <div class="flex space-x-4">
+                                <button onclick="submitReport()" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-semibold transition-all duration-300">
+                                    Submit Report
+                                </button>
+                                <button onclick="closeReportModal()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold transition-all duration-300">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         function render() {
             const app = document.getElementById('app');
             let content = renderHeader();
@@ -1175,6 +1341,11 @@
             }
             
             app.innerHTML = content;
+            
+            // Render Report Modal if active
+            if (state.showReportModal) {
+                app.insertAdjacentHTML('beforeend', renderReportModal());
+            }
             
             if (state.lightboxIndex !== null) {
                 app.insertAdjacentHTML('beforeend', renderLightbox());
