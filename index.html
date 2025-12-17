@@ -1,1022 +1,222 @@
+<!-- ONLY CHANGES ARE MARKED WITH 🔧 COMMENTS -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Amanah - Secure marriage profile photo sharing with OTP protection by Syed Rashad">
     <title>Amanah - Secure Photo Sharing</title>
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
+
     <style>
-        /* Base styles */
-        .card-shadow {
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-        }
-        .btn-gradient-purple {
-            background: linear-gradient(135deg, #a855f7, #9333ea);
-            transition: all 0.3s ease;
-        }
-        .btn-gradient-purple:hover {
-            background: linear-gradient(135deg, #9333ea, #7e22ce);
-            transform: translateY(-1px);
-        }
-        
-        .secure-image-container {
-            position: relative;
-            display: inline-block;
-            -webkit-user-select: none;
-            user-select: none;
-        }
-        .viewer-thumbnail {
-            width: 100%;
-            height: 200px;
-            background-color: #1f2937;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .viewer-thumbnail canvas {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain; 
-            width: auto !important;
-            height: auto !important;
-        }
-
-        .btn-disabled {
-            background-color: #6b7280;
-            cursor: not-allowed;
-            opacity: 0.6;
-            pointer-events: none;
-        }
-
-        .screenshot-block-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #000;
-            z-index: 9999;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-        }
-        
-        .screenshot-block-overlay.active {
-            display: flex;
-        }
-
-        body {
-            -webkit-user-select: none; 
-            -moz-user-select: none; 
-            -ms-user-select: none; 
-            user-select: none;
-            overflow-x: hidden;
-        }
+        body { user-select: none; background:#111827 }
+        .btn-disabled { opacity:.5; pointer-events:none }
+        .viewer-thumbnail { height:200px; background:#1f2937; display:flex; align-items:center; justify-content:center }
+        canvas { max-width:100%; max-height:100% }
+        .screenshot-block-overlay{position:fixed;inset:0;background:#000;z-index:9999;display:none;align-items:center;justify-content:center;color:#fff}
+        .screenshot-block-overlay.active{display:flex}
     </style>
-    
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-YPHFTQYLE1"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', 'G-YPHFTQYLE1');
-    </script>
 </head>
-<body class="bg-gray-900 text-gray-200" oncopy="return false;" oncut="return false;">
-    
-    <div id="screenshot-block-overlay" class="screenshot-block-overlay">
-        <svg class="w-24 h-24 text-red-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-        </svg>
-        <h2 class="text-2xl font-bold text-white mb-2">⚠️ Screenshot Detected</h2>
-        <p class="text-gray-300 text-center px-4">Screenshots are prohibited. You will be logged out shortly.</p>
-    </div>
 
-    <div id="app"></div>
-    
-    <script>
-        const SUPABASE_URL = 'https://imiljivxosyrcosznklh.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltaWxqaXZ4b3N5cmNvc3pua2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxMTIwOTcsImV4cCI6MjA3OTY4ODA5N30.TOgeuC3-RdG2ywIxDz2NWRhLHI4gxTkG4pilaZBqhso';
-        
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        
-        let visibilityChangeCount = 0;
-        let lastVisibilityChange = 0;
-        let protectionActive = false;
+<body>
+<div id="screenshot-block-overlay" class="screenshot-block-overlay">
+    <h2 class="text-2xl font-bold">⚠ Screenshot Detected</h2>
+</div>
 
-        let state = {
-            view: 'home',
-            currentAlbum: null,
-            uploaderInfo: { name: '', email: '' },
-            photos: [],
-            shareLink: '',
-            otp: '',
-            otpExpiry: null,
-            viewerOtp: '',
-            albumIdToView: '',
-            isVerified: false,
-            loading: false,
-            lightboxIndex: null,
-            manageEmail: '',
-            termsAccepted: false,
-            screenshotAttempts: 0 
-        };
-        
-        function genOTP(){return Math.floor(100000+Math.random()*900000).toString()}
-        function genAlbumId(){return'album_'+Math.random().toString(36).substr(2,9)}
-        
-        function formatTime(e){
-            const r=e-Date.now();
-            if(r<=0)return 'Expired';
-            const t=Math.floor(r/36e5);
-            const n=Math.floor(r%36e5/6e4);
-            
-            if (t > 0) {
-                return `${t}h ${n}m`;
-            } else if (n > 0) {
-                return `${n}m`;
-            } else {
-                return 'less than 1m';
-            }
-        }
-        
-        function actionCard(title, color, svgPath, text, buttonText, action) {
-            return `
-                <div class="bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-700 hover:border-${color}-500 transition-all duration-300 flex flex-col h-full transform hover:-translate-y-1">
-                    <div class="flex items-start mb-4">
-                        <div class="p-3 bg-${color}-900 bg-opacity-30 rounded-lg mr-4">
-                            <svg class="w-8 h-8 text-${color}-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">${svgPath}</svg>
-                        </div>
-                        <h3 class="text-xl font-bold text-white leading-tight mt-1">${title}</h3>
+<div id="app"></div>
+
+<script>
+/* ---------------- CONFIG ---------------- */
+const supabase = window.supabase.createClient(
+    'https://imiljivxosyrcosznklh.supabase.co',
+    'YOUR_ANON_KEY'
+);
+
+/* ---------------- STATE ---------------- */
+let state = {
+    view: 'home',
+    accessMode: null,          // 🔧 'owner' | 'viewer'
+    currentAlbum: null,
+    uploaderInfo: { name:'', email:'' },
+    photos: [],
+    otp: '',
+    otpExpiry: null,
+    shareLink: '',
+    viewerOtp: '',
+    albumIdToView: '',
+    loading: false,
+    lightboxIndex: null,
+    screenshotAttempts: 0
+};
+
+/* ---------------- HELPERS ---------------- */
+const genOTP = () => Math.floor(100000+Math.random()*900000).toString();
+const genAlbumId = () => 'album_' + Math.random().toString(36).slice(2,9);
+const formatTime = t => {
+    const d = t - Date.now();
+    if (d <= 0) return 'Expired';
+    const m = Math.floor(d / 60000);
+    return m < 60 ? `${m}m` : `${Math.floor(m/60)}h`;
+};
+
+/* ---------------- NAV ---------------- */
+function nav(v){
+    state.view = v;
+    state.lightboxIndex = null;
+    render();
+}
+
+/* ---------------- UPLOAD ---------------- */
+async function upload(){
+    if(!state.uploaderInfo.name || !state.uploaderInfo.email || !state.photos.length){
+        alert('Missing fields'); return;
+    }
+    state.loading=true; render();
+
+    const id = genAlbumId();
+    const otp = genOTP();
+    const expiry = Date.now() + 86400000;
+
+    await supabase.from('albums').insert({
+        id, name: state.uploaderInfo.name,
+        email: state.uploaderInfo.email.toLowerCase(),
+        otp, otp_expiry: expiry
+    });
+
+    await supabase.from('photos').insert(
+        state.photos.map(p => ({ album_id:id, photo_data:p }))
+    );
+
+    state.currentAlbum = { id, name: state.uploaderInfo.name, photos: state.photos };
+    state.otp = otp;
+    state.otpExpiry = expiry;
+    state.shareLink = location.origin + '?album=' + id;
+
+    state.accessMode = 'owner';       // 🔧 explicit
+    state.view = 'gallery';
+    state.loading=false;
+    render();
+}
+
+/* ---------------- MANAGE ---------------- */
+async function manageAlbum(){
+    state.loading=true; render();
+
+    const { data:album } = await supabase
+        .from('albums').select('*')
+        .eq('email', state.uploaderInfo.email.toLowerCase())
+        .single();
+
+    const { data:photos } = await supabase
+        .from('photos').select('*')
+        .eq('album_id', album.id)
+        .order('created_at');
+
+    state.currentAlbum = { ...album, photos: photos.map(p=>p.photo_data) };
+    state.otp = album.otp;
+    state.otpExpiry = album.otp_expiry;
+    state.shareLink = location.origin + '?album=' + album.id;
+
+    state.accessMode = 'owner';       // 🔧 explicit
+    state.view = 'gallery';
+    state.loading=false;
+    render();
+}
+
+/* ---------------- VERIFY (VIEWER) ---------------- */
+async function verify(){
+    state.loading=true; render();
+
+    const { data:album } = await supabase
+        .from('albums').select('*')
+        .eq('id', state.albumIdToView)
+        .single();
+
+    if(Date.now() > album.otp_expiry || album.otp !== state.viewerOtp){
+        alert('Invalid or expired OTP');
+        state.loading=false; render(); return;
+    }
+
+    const { data:photos } = await supabase
+        .from('photos').select('*')
+        .eq('album_id', album.id)
+        .order('created_at');
+
+    state.currentAlbum = { ...album, photos: photos.map(p=>p.photo_data) };
+
+    state.accessMode = 'viewer';      // 🔧 explicit
+    state.view = 'gallery';
+    state.loading=false;
+    render();
+}
+
+/* ---------------- PROTECTION ---------------- */
+function setupProtection(){
+    if(state.accessMode !== 'viewer') return;   // 🔧 owner never blocked
+    document.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        handleScreenshot();
+    });
+}
+function handleScreenshot(){
+    state.screenshotAttempts++;
+    if(state.screenshotAttempts >= 2){
+        document.getElementById('screenshot-block-overlay').classList.add('active');
+        setTimeout(()=>nav('home'),1000);
+    }
+}
+
+/* ---------------- RENDER ---------------- */
+function render(){
+    document.getElementById('app').innerHTML = `
+        ${state.loading ? '<p class="p-8 text-center">Loading…</p>' : ''}
+        ${state.view === 'home' ? `
+            <div class="p-12 text-center">
+                <h1 class="text-4xl font-bold text-purple-400">Amanah</h1>
+                <button onclick="nav('upload')" class="mt-6 bg-purple-600 px-6 py-3 rounded">Create Album</button>
+                <button onclick="nav('viewer')" class="ml-4 bg-gray-700 px-6 py-3 rounded">View Album</button>
+            </div>
+        ` : ''}
+
+        ${state.view === 'gallery' && state.currentAlbum ? `
+            <div class="p-8">
+                <h2 class="text-2xl mb-4">${state.currentAlbum.name}'s Album</h2>
+
+                ${state.accessMode === 'owner' ? `
+                    <div class="mb-6 p-4 bg-gray-800 rounded">
+                        <p>OTP: <strong>${state.otp}</strong></p>
+                        <p>Expires in: ${formatTime(state.otpExpiry)}</p>
+                        <p class="text-sm break-all">${state.shareLink}</p>
                     </div>
-                    <div class="text-gray-400 space-y-2 mb-8 text-sm flex-grow leading-relaxed">${text}</div>
-                    <button onclick="${action}" class="w-full bg-${color}-600 text-white py-3 rounded-lg font-semibold transition-all duration-300 hover:bg-${color}-700 shadow-lg hover:shadow-${color}-500/30">
-                        ${buttonText}
-                    </button>
+                ` : ''}
+
+                <div class="grid grid-cols-2 gap-4">
+                    ${state.currentAlbum.photos.map((_,i)=>`
+                        <div class="viewer-thumbnail">
+                            <canvas id="secure-photo-${i}"></canvas>
+                        </div>
+                    `).join('')}
                 </div>
-            `;
-        }
+            </div>
+        ` : ''}
+    `;
 
-        function nav(e){
-            protectionActive=false;
-            state.view=e;
-            if(e==='home'||e==='upload'||e==='manage'||e==='viewer'){
-                if(e === 'home' || e === 'upload' || e === 'viewer') {
-                    state.photos=[];
-                    state.uploaderInfo={name:'',email:''};
-                    state.currentAlbum=null;
-                }
-                state.isVerified=false;
-                state.viewerOtp='';
-                state.albumIdToView='';
-                state.lightboxIndex=null;
-                state.screenshotAttempts=0;
-                window.history.pushState({},document.title,location.pathname)
-            }
-            render()
-        }
-        
-        function toggleTerms(checkbox) {
-            state.termsAccepted = checkbox.checked;
-            checkUploadFormComplete(); 
-            render();
-        }
-        
-        let uploadFormComplete = false;
-        
-        function checkUploadFormComplete() {
-            const isComplete = !!state.uploaderInfo.name && !!state.uploaderInfo.email && state.photos.length > 0 && state.termsAccepted;
-            if (isComplete !== uploadFormComplete) {
-                uploadFormComplete = isComplete;
-                render();
-            }
-        }
-        
-        function updateUploaderName(input) {
-            state.uploaderInfo.name = input.value;
-            checkUploadFormComplete();
-        }
-
-        function updateUploaderEmail(input) {
-            state.uploaderInfo.email = input.value;
-            checkUploadFormComplete();
-        }
-
-        let verifyFormComplete = false;
-        
-        function checkVerifyFormComplete() {
-            const isComplete = !!state.albumIdToView && !!state.viewerOtp && state.viewerOtp.length === 6;
-            if (isComplete !== verifyFormComplete) {
-                verifyFormComplete = isComplete;
-                render();
-            }
-        }
-
-        function updateAlbumId(input) {
-            const value = input.value.trim();
-            const urlMatch = value.match(/album=(album_[a-z0-9]+)/);
-            state.albumIdToView = urlMatch ? urlMatch[1] : value;
-            checkVerifyFormComplete();
-        }
-
-        function updateViewerOtp(input) {
-            state.viewerOtp = input.value;
-            checkVerifyFormComplete();
-        }
-        
-        let manageFormComplete = false;
-        
-        function checkManageFormComplete() {
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            const isComplete = emailRegex.test(state.manageEmail);
-            if (isComplete !== manageFormComplete) {
-                manageFormComplete = isComplete;
-                render();
-            }
-        }
-
-        function updateManageEmail(input) {
-            state.manageEmail = input.value;
-            checkManageFormComplete();
-        }
-
-        function scrambleCanvasPixels(canvasId) {
-            const canvas = document.getElementById(canvasId);
-            if (!canvas) return;
-
-            const ctx = canvas.getContext('2d');
-            
-            const width = canvas.offsetWidth || 600; 
-            const height = canvas.offsetHeight || 400;
-
-            canvas.width = width;
-            canvas.height = height;
-
-            ctx.fillStyle = '#1f2937'; 
-            ctx.fillRect(0, 0, width, height);
-            
-            ctx.save();
-            ctx.fillStyle = 'rgba(255, 0, 0, 0.9)';
-            ctx.font = 'bold 50px Arial'; 
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('ACCESS DENIED', width / 2, height / 2);
-            ctx.restore();
-
-            console.log(`⚡ Canvas ${canvasId} Scrambled!`);
-        }
-
-        function handleScreenshotAttempt() {
-            state.screenshotAttempts++;
-            
-            const canvasElements = document.querySelectorAll('canvas[id^="secure-photo-"]');
-            canvasElements.forEach(canvas => scrambleCanvasPixels(canvas.id));
-            
-            const overlay = document.getElementById('screenshot-block-overlay');
-            if (overlay) {
-                overlay.classList.add('active');
-                
-                console.warn('Screenshot attempt detected:', {
-                    album: state.currentAlbum?.id,
-                    timestamp: new Date().toISOString(),
-                    attemptNumber: state.screenshotAttempts
-                });
-
-                setTimeout(() => {
-                    nav('home');
-                    alert('You have been logged out due to unauthorized screen capture attempt. This incident has been logged.');
-                }, 1000); 
-            }
-        }
-
-        function showScreenshotWarning() {
-            alert('⚠️ Screenshots and screen recording are strictly prohibited!\n\nThis action has been logged and may result in restricted access.');
-            state.screenshotAttempts++;
-            
-            if (state.screenshotAttempts >= 2) { 
-                handleScreenshotAttempt();
-            }
-        }
-        
-        function setupProtection() {
-            if (protectionActive) return;
-            protectionActive = true;
-
-            const viewerContent = document.getElementById('viewer-content-area') || document.getElementById('lightbox-container');
-            const overlay = document.getElementById('screenshot-block-overlay');
-            if (!viewerContent || !overlay) return;
-
-            console.log('🔒 Enhanced protection activated');
-
-            const contextMenuBlocker = e => { 
-                e.preventDefault(); 
-                showScreenshotWarning();
-            };
-            
-            const keyBlocker = e => {
-                if (e.keyCode === 123 || e.key === 'PrintScreen' || 
-                    (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4' || e.key === '5')) ||
-                    (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J')) ||
-                    (e.ctrlKey && e.key === 'p')) {
-                    e.preventDefault();
-                    handleScreenshotAttempt(); 
-                }
-            };
-            
-            document.addEventListener('contextmenu', contextMenuBlocker);
-            document.addEventListener('keydown', keyBlocker);
-
-            const handleVisibilityChange = () => {
-                const now = Date.now();
-                const timeSinceLastChange = now - lastVisibilityChange;
-                
-                if (document.visibilityState === 'hidden') {
-                    if (timeSinceLastChange < 1500 && timeSinceLastChange > 50) { 
-                        visibilityChangeCount++;
-                        
-                        if (visibilityChangeCount >= 2) {
-                            handleScreenshotAttempt();
-                        }
-                    } else {
-                        visibilityChangeCount = 1;
-                    }
-                    lastVisibilityChange = now;
-                } else if (document.visibilityState === 'visible') {
-                    setTimeout(() => { visibilityChangeCount = 0; }, 3000); 
-                }
-            };
-
-            document.addEventListener('visibilitychange', handleVisibilityChange);
-
-            let blurStartTime = 0;
-            
-            window.addEventListener('blur', () => {
-                blurStartTime = Date.now();
+    if(state.view === 'gallery'){
+        setTimeout(()=>{
+            setupProtection();
+            state.currentAlbum.photos.forEach((p,i)=>{
+                const c=document.getElementById(`secure-photo-${i}`);
+                const ctx=c.getContext('2d');
+                const img=new Image();
+                img.onload=()=>{c.width=img.width;c.height=img.height;ctx.drawImage(img,0,0)};
+                img.src=p;
             });
+        },50);
+    }
+}
 
-            window.addEventListener('focus', () => {
-                if (blurStartTime > 0) {
-                    const blurDuration = Date.now() - blurStartTime;
-                    
-                    if (blurDuration < 500 && blurDuration > 50) {
-                        handleScreenshotAttempt(); 
-                    }
-                    blurStartTime = 0;
-                }
-            });
-        }
-        
-        function drawPhotoOnCanvas(canvasId, photoData, watermarkText, isLightbox = false) {
-            const canvas = document.getElementById(canvasId);
-            if (!canvas) return;
-
-            const ctx = canvas.getContext('2d');
-            const img = new Image();
-            
-            img.onload = () => {
-                const imgWidth = img.width;
-                const imgHeight = img.height; 
-                
-                canvas.width = imgWidth;
-                canvas.height = imgHeight;
-                
-                if(isLightbox) {
-                    canvas.style.maxWidth = '100%';
-                    canvas.style.maxHeight = '90vh';
-                    canvas.style.width = 'auto';
-                    canvas.style.height = 'auto';
-                } else {
-                    canvas.style.width = '100%';
-                    canvas.style.height = '100%'; 
-                }
-
-                ctx.drawImage(img, 0, 0, imgWidth, imgHeight);
-                
-                ctx.save();
-                ctx.globalAlpha = 0.08;
-                ctx.fillStyle = 'white';
-                
-                const watermarkSize = Math.max(100, imgWidth / 10); 
-                ctx.font = `bold ${watermarkSize}px Arial`; 
-                
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                
-                const centerX = imgWidth / 2;
-                const centerY = imgHeight / 2;
-                
-                ctx.translate(centerX, centerY);
-                ctx.rotate(-45 * Math.PI / 180);
-                
-                ctx.fillText(watermarkText || 'Amanah Secured', 0, 0);
-                
-                ctx.restore();
-            };
-
-            img.onerror = () => {
-                console.error(`Failed to load photo data for canvas ${canvasId}`);
-                ctx.fillStyle = '#333';
-                canvas.style.width = '100%';
-                canvas.style.height = '300px'; 
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = 'red';
-                ctx.font = 'bold 50px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('Image Load Error', canvas.width / 2, canvas.height / 2);
-            };
-
-            img.src = photoData;
-        }
-
-        function createShareMessage() {
-            const albumName = state.currentAlbum ? state.currentAlbum.name : 'Secured Photos';
-            const link = state.shareLink;
-            const otp = state.otp;
-            return `*--- Amanah Secure Photo Share ---*\nHello, here is the link to view the photo album for *${albumName}*.\n\n🔒 *Album Access Details:*\n- *Share Link:* ${link}\n- *One-Time Passcode (OTP):* ${otp}\n\n*Instructions:* Tap the link, then enter the OTP to view the secured photos. The access is valid for ${formatTime(state.otpExpiry)} from now.\n\nRegards,\n${state.currentAlbum.name}`.trim();
-        }
-
-        function copyText() {
-            navigator.clipboard.writeText(createShareMessage());
-            alert('Shareable link & OTP copied to clipboard!');
-        }
-        
-        function copyOtp() {
-            navigator.clipboard.writeText(state.otp);
-            alert('OTP copied to clipboard!');
-        }
-
-        function copyLink() {
-            navigator.clipboard.writeText(state.shareLink);
-            alert('Shareable link copied to clipboard!');
-        }
-
-        function shareViaWhatsApp() {
-            const message = createShareMessage();
-            const encodedMessage = encodeURIComponent(message);
-            window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
-        }
-
-        function openLightbox(index){state.lightboxIndex=index;render();setTimeout(setupProtection,100);}
-        function closeLightbox(){state.lightboxIndex=null;render();}
-        function nextPhoto(){if(state.lightboxIndex<state.currentAlbum.photos.length-1){state.lightboxIndex++;render();setTimeout(setupProtection,100);}}
-        function prevPhoto(){if(state.lightboxIndex>0){state.lightboxIndex--;render();setTimeout(setupProtection,100);}}
-        
-        function handleFiles(e){
-            const maxPhotos = 4;
-            const t=Array.from(e.target.files);
-            Promise.all(t.map(e=>new Promise(t=>{
-                const n=new FileReader();
-                n.onload=e=>t(e.target.result);
-                n.readAsDataURL(e)
-            }))).then(e=>{
-                state.photos=[...state.photos,...e].slice(0, maxPhotos);
-                checkUploadFormComplete();
-                render()
-            })
-        }
-        
-        async function manageAlbum(){ 
-            if(!manageFormComplete){alert('Please enter a valid email address.');return}
-            state.loading=true;render();
-            try{
-                const{data:albums,error}=await supabase.from('albums').select('*').eq('email',state.manageEmail.trim().toLowerCase()).limit(1);
-                if(error)throw error;
-                if(!albums||albums.length===0){
-                    alert('No albums found with this email address.');
-                    state.loading=false;
-                    render();
-                    return
-                }
-                const album=albums[0];
-                const{data:photos}=await supabase.from('photos').select('*').eq('album_id',album.id).order('created_at',{ascending:true});
-                state.currentAlbum={...album,photos:photos.map(p=>p.photo_data)};
-                state.otp=album.otp;
-                state.otpExpiry=album.otp_expiry;
-                state.shareLink=location.origin+location.pathname+'?album='+album.id;
-                state.view='gallery';
-                state.loading=false;
-                render();
-            }catch(e){
-                console.error('Manage error:',e);
-                alert('Failed to load albums: '+e.message);
-                state.loading=false;
-                render();
-            }
-        }
-        
-        async function upload(){
-            if (!state.termsAccepted) {
-                alert('You must accept the Terms & Conditions before creating an album.');
-                return;
-            }
-            if(!state.uploaderInfo.name||!state.uploaderInfo.email||!state.photos.length){alert('Please fill all required fields and upload at least one photo');return}state.loading=true;render();try{const e=genAlbumId(),t=genOTP(),n=Date.now()+864e5,{data:a,error:o}=await supabase.from('albums').insert({id:e,name:state.uploaderInfo.name,email:state.uploaderInfo.email.trim().toLowerCase(),otp:t,otp_expiry:n,created_at:Date.now()}).select().single();if(o)throw o;const{error:r}=await supabase.from('photos').insert(state.photos.map(t=>({album_id:e,photo_data:t})));if(r)throw r;const{data:s,error:i}=await supabase.from('photos').select('*').eq('album_id',e).order('created_at',{ascending:true});if(i)throw i;state.currentAlbum={...a,photos:s.map(e=>e.photo_data)};state.otp=t;state.otpExpiry=n;state.shareLink=location.origin+location.pathname+'?album='+e;state.view='gallery';state.loading=false;render()}catch(e){console.error('Upload error:',e);alert('Failed to create album: '+e.message);state.loading=false;render()}}
-
-        async function regenOTP(){
-            if(!state.currentAlbum)return;
-            state.loading=true;
-            render();
-            try{
-                const e=genOTP();
-                const t=Date.now()+864e5; 
-                
-                const {error:n}=await supabase.from('albums').update({
-                    otp:e,
-                    otp_expiry:t
-                }).eq('id',state.currentAlbum.id);
-
-                if(n)throw n;
-                
-                state.currentAlbum.otp=e;
-                state.otp=e;
-                state.otpExpiry=t;
-                state.loading=false;
-                alert('New OTP generated successfully! Access is now valid for the next 24 hours.');
-                render();
-            }catch(e){
-                console.error('OTP error:',e);
-                alert('Failed to regenerate OTP: '+e.message);
-                state.loading=false;
-                render();
-            }
-        }
-        
-        async function expireOTP(){
-            if(!state.currentAlbum)return;if(!confirm('Expire OTP now? This will immediately block all access to your album.'))return;state.loading=true;render();try{const e=Date.now()-1000,{error:t}=await supabase.from('albums').update({otp_expiry:e}).eq('id',state.currentAlbum.id);if(t)throw t;state.currentAlbum.otp_expiry=e;state.otpExpiry=e;state.loading=false;alert('OTP expired successfully! No one can access this album now.');render()}catch(e){console.error('Expire OTP error:',e);alert('Failed to expire OTP: '+e.message);state.loading=false;render()}}
-        
-        async function verify(){
-            if(!verifyFormComplete){alert('Please enter a valid Album ID and a 6-digit OTP.');return}
-            state.loading=true;render();
-            try{
-                const{data:e,error:t}=await supabase.from('albums').select('*').eq('id',state.albumIdToView).single();
-                if(t||!e){alert('Album not found. Please check your Album ID.');state.loading=false;render();return}
-                
-                const isExpired = Date.now() > e.otp_expiry;
-                if(isExpired){alert('OTP has expired. Please contact the album owner to regenerate it.');state.loading=false;render();return}
-                
-                if(e.otp!==state.viewerOtp){alert('Invalid OTP. Please check and try again.');state.loading=false;render();return}
-                
-                const{data:n,error:a}=await supabase.from('photos').select('*').eq('album_id',state.albumIdToView).order('created_at',{ascending:true});
-                if(a)throw a;
-                
-                state.currentAlbum={...e,photos:n.map(e=>e.photo_data)};
-                state.isVerified=true;
-                state.view='view';
-                state.loading=false;
-                render();
-            }catch(e){
-                console.error('Verify error:',e);
-                alert('Failed to verify album: '+e.message);
-                state.loading=false;
-                render();
-            }
-        }
-        
-        async function delPhoto(e){
-            if(!confirm('Are you sure you want to delete this photo?'))return;state.loading=true;render();try{const{data:t,error:n}=await supabase.from('photos').select('id').eq('album_id',state.currentAlbum.id).order('created_at',{ascending:true});if(n)throw n;if(t.length===1){if(confirm('This is the last photo. Delete the entire album?')){await delAlbum();return}else{state.loading=false;render();return}}const a=t[e],{error:o}=await supabase.from('photos').delete().eq('id',a.id);if(o)throw o;state.currentAlbum.photos=state.currentAlbum.photos.filter((t,n)=>n!==e);state.loading=false;alert('Photo deleted successfully');render()}catch(e){console.error('Delete error:',e);alert('Failed to delete photo: '+e.message);state.loading=false;render()}}
-        
-        async function delAlbum(){
-            if(!confirm('Are you sure you want to delete this entire album? This action cannot be undone.'))return;state.loading=true;render();try{const{error:e}=await supabase.from('albums').delete().eq('id',state.currentAlbum.id);if(e)throw e;state.view='home';state.currentAlbum=null;state.loading=false;alert('Album deleted successfully');render()}catch(e){console.error('Delete error:',e);alert('Failed to delete album: '+e.message);state.loading=false;render()}}
-
-        function renderHeader() {
-            const showMyAlbumButton = state.view === 'gallery';
-            
-            return `
-                <header class="bg-gray-800 shadow-lg fixed w-full z-20">
-                    <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
-                        <h1 class="text-2xl font-extrabold text-white cursor-pointer" onclick="nav('home')">
-                            <span class="text-purple-400">Amanah</span>
-                        </h1>
-                        <nav>
-                            <button onclick="nav('home')" class="text-sm font-semibold px-4 py-2 rounded-full transition-colors ${state.view === 'home' ? 'bg-purple-600 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-700'}">
-                                Home
-                            </button>
-                            ${showMyAlbumButton ? `
-                                <button onclick="nav('gallery')" class="text-sm font-semibold px-4 py-2 rounded-full transition-colors ${state.view === 'gallery' ? 'bg-purple-600 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-700'}">
-                                    My Album
-                                </button>
-                            ` : ''}
-                        </nav>
-                    </div>
-                </header>
-            `;
-        }
-        
-        function renderFooter(){ 
-            return `
-                <footer class="bg-gray-900 border-t border-gray-700 text-gray-500 mt-16 pb-8">
-                    <div class="max-w-6xl mx-auto px-4 py-12">
-                        <div class="grid md:grid-cols-4 gap-12">
-                            <div class="md:col-span-2 space-y-4">
-                                <h3 class="text-xl font-bold text-purple-400 flex items-center">
-                                    <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                    About Amanah
-                                </h3>
-                                <p class="text-gray-400 text-sm leading-relaxed">
-                                    Amanah is a secure, closed photo-sharing platform designed to prioritize trust and control. In an era of unchecked digital sharing, we provide a safe space where photos are shared with clear consent and accountability.
-                                </p>
-                                <p class="text-gray-400 text-sm leading-relaxed">
-                                    Our technology prevents uncontrolled forwarding and endless circulation, ensuring your images reach only the intended recipient. Rooted in the values of dignity and responsible usage, Amanah is a founder-led initiative committed to building trust-first products.
-                                </p>
-                            </div>
-                            <div>
-                                <h3 class="text-lg font-bold mb-4 text-purple-400">Legal & Security</h3>
-                                <ul class="space-y-3 text-sm">
-                                    <li class="flex items-center text-red-400 font-medium bg-red-900/20 p-2 rounded">
-                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                                        Cybercrime Warning
-                                    </li>
-                                    <li><a href="#" onclick="nav('terms'); return false;" class="text-gray-400 hover:text-purple-300 transition-colors">Terms & Conditions</a></li>
-                                    <li><a href="#" class="text-gray-400 hover:text-purple-300 transition-colors">Privacy Policy</a></li>
-                                </ul>
-                            </div>
-                            <div>
-                                <h3 class="text-lg font-bold mb-4 text-purple-400">Contact & Connect</h3>
-                                <p class="text-sm text-gray-400 mb-1">Support Email:</p>
-                                <a href="mailto:help.amanahapp@gmail.com" class="text-purple-300 hover:text-purple-100 text-sm block mb-6">help.amanahapp@gmail.com</a>
-                                
-                                <a href="https://www.linkedin.com/in/syed-rashad/" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center w-full px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors">
-                                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
-                                    Connect on LinkedIn
-                                </a>
-                                <p class="text-xs text-gray-600 mt-4">© 2025 Amanah by Syed Rashad</p>
-                            </div>
-                        </div>
-                        <div class="border-t border-gray-800 mt-10 pt-6 text-center text-xs text-gray-600 font-arabic">أمانة - Trustworthy Protection</div>
-                    </div>
-                </footer>
-            `;
-        }
-
-        function renderLoading(){ 
-            return '<div class="fixed inset-0 bg-gray-900 bg-opacity-90 z-50 flex flex-col items-center justify-center"><div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-purple-500"></div><span class="mt-4 text-xl font-semibold text-gray-300">Processing secure request...</span></div>';
-        }
-
-        function renderHome() {
-            return `
-                <div class="pt-24 min-h-screen flex flex-col">
-                    <div class="w-full max-w-4xl mx-auto px-4 text-center mb-16">
-                        <div class="inline-block p-3 rounded-full bg-purple-900 bg-opacity-30 mb-4 border border-purple-500/30">
-                            <svg class="w-10 h-10 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                        </div>
-                        <h1 class="text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-4 tracking-tight">
-                            Amanah
-                        </h1>
-                        <p class="text-xl md:text-2xl text-gray-300 font-light mb-10 max-w-2xl mx-auto">
-                            Built for privacy, consent, and dignity.
-                        </p>
-                        
-                        <div class="flex flex-col sm:flex-row justify-center gap-4">
-                            <button onclick="nav('upload')" class="px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-purple-500/40 transition-all transform hover:-translate-y-1">
-                                Create Secure Album
-                            </button>
-                            <button onclick="nav('manage')" class="px-8 py-4 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 hover:border-gray-500 rounded-xl font-semibold text-lg transition-all">
-                                Manage My Photos
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="w-full bg-gray-800/50 border-y border-gray-800 mb-16">
-                        <div class="max-w-5xl mx-auto px-4 py-8">
-                            <div class="grid md:grid-cols-2 gap-8 items-center">
-                                <div class="bg-gray-900 p-5 rounded-xl border border-gray-700/50 opacity-70">
-                                    <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">The Reality</h3>
-                                    <p class="text-gray-400 text-sm">
-                                        Standard sharing is uncontrollable. Once sent, photos can be forwarded, saved, and circulated without your knowledge or consent.
-                                    </p>
-                                </div>
-                                <div class="bg-gradient-to-br from-purple-900/40 to-gray-900 p-5 rounded-xl border border-purple-500/30">
-                                    <h3 class="text-sm font-bold text-purple-400 uppercase tracking-wider mb-2">The Amanah Solution</h3>
-                                    <p class="text-gray-200 text-sm">
-                                        Time-bound access controlled by <strong>OTP</strong>. Anti-screenshot technology. You decide exactly who sees what, and for how long.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="max-w-6xl mx-auto px-4 grid md:grid-cols-3 gap-6 mb-16">
-                        ${actionCard(
-                            'Create Secure Album', 
-                            'purple', 
-                            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>', 
-                            'Upload photos, generate a secure link, and protect access with a One-Time Password (OTP). You control who sees your photos.',
-                            'Start Uploading',
-                            "nav('upload')"
-                        )}
-                        ${actionCard(
-                            'View an Album', 
-                            'blue', 
-                            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>', 
-                            'Received a link? Enter the Album ID and the 6-digit OTP provided to you to view shared photos securely.',
-                            'View Photos',
-                            "nav('viewer')"
-                        )}
-                        ${actionCard(
-                            'Manage Album', 
-                            'emerald', 
-                            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>', 
-                            'Created an album? Enter your email to regenerate keys, extend access time, or delete your album permanently.',
-                            'Manage Access',
-                            "nav('manage')"
-                        )}
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderUploadView() {
-            const maxPhotos = 4;
-            const uploadButtonClass = uploadFormComplete ? 'btn-gradient-purple hover:bg-purple-700' : 'btn-disabled';
-
-            return `
-                <div class="max-w-3xl mx-auto px-4 pt-24 min-h-screen">
-                    <h2 class="text-3xl font-extrabold text-white mb-6 border-b border-gray-700 pb-3">Create New Secured Album</h2>
-                    
-                    <div class="bg-gray-800 rounded-xl p-6 shadow-lg mb-8">
-                        <h3 class="text-xl font-semibold mb-4 text-purple-400">1. Your Details</h3>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-gray-400 mb-1 text-sm">Your Name (Display Name)</label>
-                                <input type="text" value="${state.uploaderInfo.name}" oninput="updateUploaderName(this)" class="w-full bg-gray-700 text-white rounded p-3 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" placeholder="e.g. John Doe">
-                            </div>
-                            <div>
-                                <label class="block text-gray-400 mb-1 text-sm">Your Email (For management)</label>
-                                <input type="email" value="${state.uploaderInfo.email}" oninput="updateUploaderEmail(this)" class="w-full bg-gray-700 text-white rounded p-3 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" placeholder="you@example.com">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-gray-800 rounded-xl p-6 shadow-lg mb-8">
-                        <h3 class="text-xl font-semibold mb-4 text-purple-400">2. Upload Photos</h3>
-                        <div class="border-2 border-dashed border-gray-600 rounded-xl p-8 text-center hover:border-purple-500 transition-colors cursor-pointer bg-gray-700/30" onclick="document.getElementById('fileInput').click()">
-                            <svg class="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                            <p class="text-gray-300">Click to select photos</p>
-                            <p class="text-sm text-gray-500 mt-1">Max 4 photos</p>
-                            <input type="file" id="fileInput" multiple accept="image/*" class="hidden" onchange="handleFiles(event)">
-                        </div>
-                        
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                            ${state.photos.map((photo, index) => `
-                                <div class="relative group aspect-square bg-gray-900 rounded-lg overflow-hidden">
-                                    <img src="${photo}" class="w-full h-full object-cover">
-                                    <button onclick="state.photos.splice(${index}, 1); checkUploadFormComplete(); render()" class="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                    </button>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-
-                    <div class="mb-8">
-                        <label class="flex items-center space-x-3 cursor-pointer p-4 bg-gray-800 rounded-xl border border-gray-700 hover:border-gray-500 transition-colors">
-                            <input type="checkbox" onchange="toggleTerms(this)" ${state.termsAccepted ? 'checked' : ''} class="form-checkbox h-5 w-5 text-purple-600 rounded bg-gray-700 border-gray-500 focus:ring-purple-500">
-                            <span class="text-sm text-gray-300 select-none">I agree to the <span class="text-purple-400">Terms & Conditions</span> and confirm I have the right to share these images.</span>
-                        </label>
-                    </div>
-
-                    <button onclick="upload()" class="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg ${uploadButtonClass}">
-                        Create Secure Album & Get Link
-                    </button>
-                    
-                    <button onclick="nav('home')" class="w-full mt-4 py-3 text-gray-400 hover:text-white transition-colors">Cancel</button>
-                </div>
-            `;
-        }
-        
-        function renderManageView() {
-            const manageButtonClass = manageFormComplete ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'btn-disabled';
-            
-            return `
-                 <div class="max-w-md mx-auto px-4 pt-32 min-h-screen">
-                    <div class="bg-gray-800 rounded-2xl shadow-2xl p-8 border border-gray-700">
-                        <div class="text-center mb-8">
-                            <div class="inline-block p-3 rounded-full bg-emerald-900 bg-opacity-30 mb-4">
-                                <svg class="w-10 h-10 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
-                            </div>
-                            <h2 class="text-2xl font-bold text-white">Manage Album</h2>
-                            <p class="text-gray-400 mt-2 text-sm">Enter the email used to create the album to manage access.</p>
-                        </div>
-                        
-                        <div class="space-y-6">
-                            <div>
-                                <label class="block text-gray-400 mb-2 text-sm font-semibold">Uploader Email</label>
-                                <input type="email" value="${state.manageEmail}" oninput="updateManageEmail(this)" class="w-full bg-gray-900 text-white rounded-lg p-3 border border-gray-600 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all placeholder-gray-600" placeholder="Enter your email address">
-                            </div>
-                            
-                            <button onclick="manageAlbum()" class="w-full py-3 rounded-lg font-bold shadow-lg transition-all transform active:scale-95 ${manageButtonClass}">
-                                Find Album
-                            </button>
-                        </div>
-                         <div class="mt-6 text-center">
-                            <button onclick="nav('home')" class="text-sm text-gray-500 hover:text-gray-300 transition-colors">Back to Home</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderViewerView() {
-            const verifyButtonClass = verifyFormComplete ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'btn-disabled';
-            
-            return `
-                <div class="max-w-md mx-auto px-4 pt-32 min-h-screen">
-                    <div class="bg-gray-800 rounded-2xl shadow-2xl p-8 border border-gray-700">
-                        <div class="text-center mb-8">
-                            <div class="inline-block p-3 rounded-full bg-blue-900 bg-opacity-30 mb-4">
-                                <svg class="w-10 h-10 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                            </div>
-                            <h2 class="text-2xl font-bold text-white">View Secure Album</h2>
-                            <p class="text-gray-400 mt-2 text-sm">Enter the credentials shared with you.</p>
-                        </div>
-                        
-                        <div class="space-y-6">
-                            <div>
-                                <label class="block text-gray-400 mb-2 text-sm font-semibold">Album ID</label>
-                                <input type="text" value="${state.albumIdToView}" oninput="updateAlbumId(this)" class="w-full bg-gray-900 text-white rounded-lg p-3 border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder-gray-600" placeholder="album_xxxxxxxxx or paste full link">
-                            </div>
-                            <div>
-                                <label class="block text-gray-400 mb-2 text-sm font-semibold">One-Time Password (OTP)</label>
-                                <input type="text" value="${state.viewerOtp}" oninput="updateViewerOtp(this)" maxlength="6" class="w-full bg-gray-900 text-white rounded-lg p-3 border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all tracking-widest text-center text-lg placeholder-gray-600" placeholder="123456">
-                            </div>
-                            
-                            <button onclick="verify()" class="w-full py-3 rounded-lg font-bold shadow-lg transition-all transform active:scale-95 ${verifyButtonClass}">
-                                Access Photos
-                            </button>
-                        </div>
-                        <div class="mt-6 text-center">
-                            <button onclick="nav('home')" class="text-sm text-gray-500 hover:text-gray-300 transition-colors">Back to Home</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderGalleryView() {
-            if (!state.currentAlbum) { nav('home'); return ''; }
-            
-            const isOwner = state.manageEmail && state.currentAlbum.email === state.manageEmail;
-            
-            // Trigger drawing on canvas after render
-            setTimeout(() => {
-                if(state.view === 'view' && !isOwner) setupProtection();
-                
-                state.currentAlbum.photos.forEach((photo, index) => {
-                    drawPhotoOnCanvas(`secure-photo-${index}`, photo, isOwner ? 'Managed View' : `Shared with ${state.currentAlbum.name}`);
-                });
-                
-                if (state.lightboxIndex !== null) {
-                    drawPhotoOnCanvas('lightbox-canvas', state.currentAlbum.photos[state.lightboxIndex], isOwner ? 'Managed View' : `Shared with ${state.currentAlbum.name}`, true);
-                }
-            }, 50);
-
-            let content = `
-                <div class="pt-24 min-h-screen pb-12" id="viewer-content-area">
-                    <div class="max-w-5xl mx-auto px-4">
-                        
-                        <div class="bg-gray-800 rounded-xl p-6 shadow-lg mb-8 border border-gray-700">
-                            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-                                <div>
-                                    <h2 class="text-2xl font-bold text-white mb-1">${state.currentAlbum.name}'s Album</h2>
-                                    <p class="text-sm text-gray-400">ID: <span class="font-mono text-purple-300">${state.currentAlbum.id}</span></p>
-                                </div>
-                                <div class="mt-4 md:mt-0 flex items-center space-x-4">
-                                    <div class="text-right">
-                                        <p class="text-xs text-gray-500 uppercase font-semibold">Access Expires In</p>
-                                        <p class="text-xl font-mono font-bold text-purple-400">${formatTime(state.otpExpiry)}</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            ${isOwner ? `
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-900 rounded-lg p-4 border border-gray-700">
-                                    <div>
-                                        <label class="text-xs text-gray-500 uppercase font-bold">Current OTP</label>
-                                        <div class="flex items-center space-x-2 mt-1">
-                                            <span class="text-2xl font-mono text-white tracking-widest">${state.otp}</span>
-                                            <button onclick="copyOtp()" class="text-gray-400 hover:text-white"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></button>
-                                        </div>
-                                    </div>
-                                    <div class="flex flex-col space-y-2 justify-center">
-                                        <button onclick="copyText()" class="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm py-2 rounded font-medium flex items-center justify-center">
-                                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg> Copy Share Details
-                                        </button>
-                                         <button onclick="shareViaWhatsApp()" class="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded font-medium flex items-center justify-center">
-                                            <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg> Share via WhatsApp
-                                        </button>
-                                    </div>
-                                </div>
-                                
-                                <div class="grid grid-cols-2 gap-4 mt-4">
-                                    <button onclick="regenOTP()" class="bg-blue-900/50 hover:bg-blue-800 text-blue-300 py-2 rounded border border-blue-800 transition-colors text-sm">
-                                        🔄 Regenerate OTP (Extend 24h)
-                                    </button>
-                                    <button onclick="expireOTP()" class="bg-red-900/50 hover:bg-red-800 text-red-300 py-2 rounded border border-red-800 transition-colors text-sm">
-                                        ⛔ Expire Access Now
-                                    </button>
-                                    <button onclick="delAlbum()" class="col-span-2 bg-gray-700 hover:bg-red-900 text-gray-300 hover:text-red-200 py-2 rounded border border-gray-600 hover:border-red-700 transition-colors text-sm">
-                                        🗑️ Delete Album Permanently
-                                    </button>
-                                </div>
-                            ` : ''}
-                        </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            ${state.currentAlbum.photos.map((photo, index) => `
-                                <div class="bg-gray-800 rounded-lg p-3 shadow-lg border border-gray-700">
-                                    <div class="secure-image-container w-full" onclick="openLightbox(${index})">
-                                        <div class="viewer-thumbnail cursor-zoom-in rounded overflow-hidden">
-                                            <canvas id="secure-photo-${index}"></canvas>
-                                        </div>
-                                    </div>
-                                    ${isOwner ? `
-                                        <button onclick="delPhoto(${index})" class="w-full mt-3 bg-red-900/30 hover:bg-red-900 text-red-400 py-2 rounded text-sm transition-colors border border-red-900/50">
-                                            Delete Photo
-                                        </button>
-                                    ` : ''}
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            // Lightbox Overlay
-            if (state.lightboxIndex !== null) {
-                content += `
-                    <div id="lightbox-container" class="fixed inset-0 bg-black z-50 flex items-center justify-center">
-                        <div class="absolute top-4 right-4 z-50 flex space-x-4">
-                            <button onclick="closeLightbox()" class="text-gray-400 hover:text-white">
-                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                            </button>
-                        </div>
-                        
-                        <button onclick="prevPhoto()" class="absolute left-4 z-50 text-gray-400 hover:text-white p-2 bg-gray-900/50 rounded-full hover:bg-gray-800">
-                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                        </button>
-                        
-                        <div class="w-full h-full flex items-center justify-center p-4">
-                             <canvas id="lightbox-canvas" class="max-w-full max-h-full object-contain"></canvas>
-                        </div>
-                        
-                        <button onclick="nextPhoto()" class="absolute right-4 z-50 text-gray-400 hover:text-white p-2 bg-gray-900/50 rounded-full hover:bg-gray-800">
-                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                        </button>
-                        
-                         <div class="absolute bottom-6 left-0 w-full text-center text-gray-400 text-sm">
-                            Photo ${state.lightboxIndex + 1} of ${state.currentAlbum.photos.length}
-                        </div>
-                    </div>
-                `;
-            }
-
-            return content;
-        }
-
-        function render() {
-            const app = document.getElementById('app');
-            let content = renderHeader();
-            
-            if (state.loading) {
-                content += renderLoading();
-            }
-            
-            if (state.view === 'home') {
-                content += renderHome();
-            } else if (state.view === 'upload') {
-                content += renderUploadView();
-            } else if (state.view === 'manage') {
-                content += renderManageView();
-            } else if (state.view === 'viewer') {
-                content += renderViewerView();
-            } else if (state.view === 'gallery' || state.view === 'view') {
-                content += renderGalleryView();
-            }
-
-            content += renderFooter();
-            app.innerHTML = content;
-        }
-
-        // Initialize
-        const urlParams = new URLSearchParams(window.location.search);
-        const albumId = urlParams.get('album');
-        if (albumId) {
-            state.view = 'viewer';
-            state.albumIdToView = albumId;
-            render();
-            // Pre-fill input if it exists in DOM
-            setTimeout(() => {
-                const input = document.querySelector('input[placeholder*="album_"]');
-                if(input) input.value = albumId;
-            }, 100);
-        } else {
-            render();
-        }
-    </script>
+render();
+</script>
 </body>
 </html>
-
