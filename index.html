@@ -3,93 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Amanah - Secure marriage profile photo sharing with OTP protection">
     <title>Amanah - Secure Matrimonial Photo Sharing</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
-        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-        .btn-gradient-purple {
+        body { background-color: #0f172a; color: #e2e8f0; user-select: none; }
+        .btn-purple {
             background: linear-gradient(135deg, #a855f7, #9333ea);
-            transition: all 0.3s ease;
+            transition: transform 0.2s;
         }
-        .btn-gradient-purple:hover { transform: translateY(-1px); opacity: 0.9; }
-        
-        /* Fixed Photo Container */
-        .photo-grid-item {
-            width: 100%;
-            height: 250px;
-            background-color: #1f2937;
+        .btn-purple:hover { transform: translateY(-2px); }
+        .card-bg { background-color: #1e293b; border: 1px solid #334155; }
+        .viewer-thumbnail {
+            aspect-ratio: 3/4;
+            background-color: #0f172a;
             border-radius: 0.75rem;
-            overflow: hidden;
+            border: 2px solid #334155;
             display: flex;
             align-items: center;
             justify-content: center;
-            border: 1px solid #374151;
+            overflow: hidden;
         }
-        .photo-grid-item img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .screenshot-block-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: #000; z-index: 9999; display: none;
-            justify-content: center; align-items: center; flex-direction: column;
-        }
-        .screenshot-block-overlay.active { display: flex; }
-        body { user-select: none; -webkit-user-select: none; overflow-x: hidden; }
+        .viewer-thumbnail img { width: 100%; height: 100%; object-fit: cover; }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-200">
-    
-    <div id="screenshot-block-overlay" class="screenshot-block-overlay">
-        <h2 class="text-2xl font-bold text-white mb-2">⚠️ Screenshot Detected</h2>
-        <p class="text-gray-300">Security protocol active. Access suspended.</p>
-    </div>
+<body>
 
     <div id="app"></div>
-    
+
     <script>
-        // --- Supabase Config ---
+        // --- Database Config ---
         const SUPABASE_URL = 'https://imiljivxosyrcosznklh.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltaWxqaXZ4b3N5cmNvc3pua2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxMTIwOTcsImV4cCI6MjA3OTY4ODA5N30.TOgeuC3-RdG2ywIxDz2NWRhLHI4gxTkG4pilaZBqhso';
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+        // --- Global State ---
         let state = {
             view: 'home',
-            uploaderInfo: { name: '', email: '' },
+            albumName: '',
+            email: '',
             photos: [],
-            currentAlbum: null,
             shareLink: '',
             otp: '',
-            otpExpiry: null,
-            manageEmail: '',
-            loading: false,
-            termsAccepted: false
+            loading: false
         };
 
         // --- Core Functions ---
-        async function copyToClipboard(text) {
+        async function copyToClipboard(text, type) {
             try {
                 await navigator.clipboard.writeText(text);
-                alert("Copied to clipboard!");
+                alert(`${type} copied to clipboard!`);
             } catch (err) {
-                alert("Failed to copy. Please select and copy manually.");
+                const input = document.createElement('input');
+                input.value = text;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+                alert(`${type} copied!`);
             }
         }
 
-        function nav(v) {
-            state.view = v;
-            if(v === 'home') { state.photos = []; state.uploaderInfo = {name:'', email:''}; }
-            render();
-        }
-
-        function handleFiles(e) {
+        function handleFileSelect(e) {
             const files = Array.from(e.target.files);
+            state.photos = []; 
             files.forEach(file => {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
@@ -100,151 +79,169 @@
             });
         }
 
-        // --- Render Views ---
-        function render() {
-            const app = document.getElementById('app');
-            let content = '';
-
-            if (state.loading) { content = `<div class="p-20 text-center">Loading...</div>`; }
-            else {
-                switch(state.view) {
-                    case 'home': content = renderHome(); break;
-                    case 'upload': content = renderUpload(); break;
-                    case 'gallery': content = renderGallery(); break;
-                    case 'manage': content = renderManage(); break;
-                }
-            }
-            app.innerHTML = content + renderFooter();
+        function navigate(v) {
+            state.view = v;
+            window.scrollTo(0,0);
+            render();
         }
 
+        // --- View Templates ---
         function renderHome() {
             return `
-                <div class="pt-20 pb-10 px-4 text-center">
-                    <h1 class="text-4xl font-bold text-purple-400 mb-4">Amanah</h1>
-                    <p class="mb-8 text-gray-400">Secure, Closed Photo Sharing for Matrimonial Proposals</p>
-                    <div class="flex justify-center gap-4">
-                        <button onclick="nav('upload')" class="btn-gradient-purple px-8 py-3 rounded-lg font-bold">Create Album</button>
-                        <button onclick="nav('manage')" class="bg-gray-700 px-8 py-3 rounded-lg font-bold">Manage Existing</button>
+            <div class="pt-32 pb-20 px-4 text-center">
+                <h1 class="text-5xl md:text-6xl font-extrabold mb-6">Amanah</h1>
+                <p class="text-xl text-gray-400 mb-10">Secure, Closed Photo Sharing for Matrimonial Proposals</p>
+                <div class="flex justify-center gap-4">
+                    <button onclick="navigate('upload')" class="btn-purple px-10 py-4 rounded-xl font-bold text-white">Create Album</button>
+                    <button onclick="alert('Management feature coming soon')" class="bg-slate-800 px-10 py-4 rounded-xl font-bold border border-slate-700">Manage Existing</button>
+                </div>
+                <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto mt-20 text-left">
+                    <div class="card-bg p-6 rounded-2xl">
+                        <h3 class="text-slate-400 font-bold mb-2 uppercase text-xs">The Reality</h3>
+                        <p class="text-sm">Standard sharing is uncontrollable. Photos can be forwarded and circulated without consent.</p>
+                    </div>
+                    <div class="card-bg p-6 rounded-2xl border-purple-500/50">
+                        <h3 class="text-purple-400 font-bold mb-2 uppercase text-xs">The Amanah Solution</h3>
+                        <p class="text-sm">Time-bound access controlled by **OTP**. Anti-screenshot technology. You decide who sees what.</p>
                     </div>
                 </div>
-            `;
+            </div>`;
         }
 
         function renderUpload() {
             return `
-                <div class="max-w-2xl mx-auto p-6 bg-gray-800 rounded-xl mt-10">
-                    <h2 class="text-2xl font-bold mb-4">Create Secure Album</h2>
-                    <input type="text" placeholder="Profile Name (e.g. Family of Ayesha)" oninput="state.uploaderInfo.name=this.value" class="w-full p-3 bg-gray-900 rounded mb-4 border border-gray-700">
-                    <input type="email" placeholder="Your Email (for management)" oninput="state.uploaderInfo.email=this.value" class="w-full p-3 bg-gray-900 rounded mb-4 border border-gray-700">
-                    <input type="file" multiple accept="image/*" onchange="handleFiles(event)" class="mb-4 text-sm">
+            <div class="pt-32 max-w-xl mx-auto px-4">
+                <div class="card-bg p-8 rounded-2xl">
+                    <h2 class="text-2xl font-bold mb-6">New Secure Album</h2>
+                    <input type="text" placeholder="Profile Name (e.g. Family of Ayesha)" oninput="state.albumName=this.value" class="w-full p-4 bg-slate-900 rounded-xl mb-4 border border-slate-700 outline-none focus:border-purple-500">
+                    <input type="email" placeholder="Your Email" oninput="state.email=this.value" class="w-full p-4 bg-slate-900 rounded-xl mb-6 border border-slate-700 outline-none focus:border-purple-500">
                     
-                    <div class="grid grid-cols-4 gap-2 mb-4">
-                        ${state.photos.map(p => `<div class="h-20 bg-gray-700 rounded overflow-hidden"><img src="${p}" class="w-full h-full object-cover"></div>`).join('')}
+                    <div class="border-2 border-dashed border-slate-700 rounded-xl p-10 text-center mb-6">
+                        <input type="file" multiple id="files" class="hidden" onchange="handleFileSelect(event)">
+                        <label for="files" class="cursor-pointer text-purple-400 font-bold hover:text-purple-300">Click to Select Photos</label>
                     </div>
 
-                    <label class="flex items-center gap-2 mb-6 text-sm text-gray-400">
-                        <input type="checkbox" onchange="state.termsAccepted=this.checked"> I accept the Privacy Policy
-                    </label>
-                    <button onclick="uploadAction()" class="w-full btn-gradient-purple py-3 rounded-lg font-bold">Generate Secure Link</button>
+                    <div class="grid grid-cols-4 gap-2 mb-8">
+                        ${state.photos.map(p => `<div class="h-16 rounded-lg bg-slate-700 overflow-hidden"><img src="${p}" class="w-full h-full object-cover"></div>`).join('')}
+                    </div>
+
+                    <button onclick="processUpload()" class="w-full btn-purple py-4 rounded-xl font-bold">Generate Secure Link</button>
                 </div>
-            `;
+            </div>`;
         }
 
-        function renderGallery() {
+        function renderManagement() {
             return `
-                <div class="max-w-4xl mx-auto p-6">
-                    <div class="bg-gray-800 p-6 rounded-xl mb-8 border border-purple-900/30">
-                        <h2 class="text-xl font-bold mb-4">${state.uploaderInfo.name || 'Your Album'}</h2>
-                        <div class="grid md:grid-cols-2 gap-4">
-                            <div class="bg-gray-900 p-4 rounded border border-gray-700">
-                                <p class="text-xs text-gray-500 uppercase font-bold">Share Link</p>
-                                <div class="flex gap-2">
-                                    <input readonly value="${state.shareLink}" class="bg-transparent text-sm w-full outline-none">
-                                    <button onclick="copyToClipboard('${state.shareLink}')" class="text-purple-400 font-bold">Copy</button>
-                                </div>
-                            </div>
-                            <div class="bg-gray-900 p-4 rounded border border-gray-700">
-                                <p class="text-xs text-gray-500 uppercase font-bold">Current OTP</p>
-                                <div class="flex gap-2">
-                                    <span class="text-purple-400 font-mono font-bold text-lg">${state.otp}</span>
-                                    <button onclick="copyToClipboard('${state.otp}')" class="ml-auto text-purple-400 font-bold">Copy</button>
-                                </div>
-                            </div>
+            <div class="pt-32 max-w-4xl mx-auto px-4">
+                <div class="flex justify-between items-start mb-8">
+                    <div>
+                        <h2 class="text-3xl font-bold">${state.albumName}</h2>
+                        <p class="text-slate-500 text-sm">Created: 12/17/2025</p>
+                    </div>
+                    <span class="bg-green-500/10 text-green-400 px-4 py-1 rounded-full text-xs font-bold border border-green-500/20">Status: ACTIVE</span>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-4 mb-8">
+                    <div class="card-bg p-4 rounded-xl">
+                        <label class="text-[10px] uppercase font-bold text-slate-500">Share Link</label>
+                        <div class="flex gap-2 mt-1">
+                            <input readonly value="${state.shareLink}" class="bg-slate-900 p-2 rounded-lg text-xs w-full border border-slate-700 text-slate-400">
+                            <button onclick="copyToClipboard('${state.shareLink}', 'Link')" class="bg-slate-700 px-4 rounded-lg text-xs font-bold">Copy</button>
                         </div>
                     </div>
-
-                    <h3 class="text-lg font-bold mb-4">Photos in this Album</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                        ${state.photos.length > 0 ? 
-                            state.photos.map(src => `
-                                <div class="photo-grid-item">
-                                    <img src="${src}" alt="Secured Photo">
-                                </div>
-                            `).join('') : 
-                            `<div class="col-span-4 py-10 text-center text-gray-600">No photos found.</div>`
-                        }
+                    <div class="card-bg p-4 rounded-xl">
+                        <label class="text-[10px] uppercase font-bold text-slate-500">Current OTP</label>
+                        <div class="flex gap-2 mt-1">
+                            <div class="bg-slate-900 p-2 rounded-lg text-purple-400 font-mono font-bold w-full border border-slate-700 text-center">${state.otp}</div>
+                            <button onclick="copyToClipboard('${state.otp}', 'OTP')" class="bg-slate-700 px-4 rounded-lg text-xs font-bold">Copy</button>
+                        </div>
                     </div>
                 </div>
-            `;
+
+                <div class="flex flex-wrap gap-2 mb-12">
+                    <button class="bg-green-600 px-6 py-2 rounded-lg text-sm font-bold">WhatsApp Share</button>
+                    <button class="bg-amber-600 px-6 py-2 rounded-lg text-sm font-bold">Regenerate OTP</button>
+                    <button class="bg-red-600 px-6 py-2 rounded-lg text-sm font-bold">Expire Now</button>
+                    <button class="bg-slate-700 px-6 py-2 rounded-lg text-sm font-bold">Delete Album</button>
+                </div>
+
+                <h3 class="font-bold mb-4 text-slate-300">Photos in this Album</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    ${state.photos.map(p => `
+                        <div class="viewer-thumbnail">
+                            <img src="${p}">
+                        </div>
+                    `).join('')}
+                </div>
+            </div>`;
         }
 
-        function renderManage() {
+        // --- Components ---
+        function renderHeader() {
             return `
-                <div class="max-w-md mx-auto p-6 bg-gray-800 rounded-xl mt-10">
-                    <h2 class="text-2xl font-bold mb-4">Manage My Album</h2>
-                    <p class="text-sm text-gray-400 mb-4">Enter the email you used to create the album.</p>
-                    <input type="email" placeholder="email@example.com" oninput="state.manageEmail=this.value" class="w-full p-3 bg-gray-900 rounded mb-4 border border-gray-700">
-                    <button onclick="manageAction()" class="w-full bg-purple-600 py-3 rounded-lg font-bold">Find Album</button>
+            <header class="fixed top-0 w-full bg-slate-900/80 backdrop-blur-md z-50 border-b border-slate-800">
+                <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+                    <div onclick="navigate('home')" class="text-2xl font-black cursor-pointer text-purple-400">Amanah</div>
+                    <button onclick="navigate('home')" class="text-sm font-bold text-slate-400 hover:text-white">Home</button>
                 </div>
-            `;
+            </header>`;
         }
 
         function renderFooter() {
             return `
-                <footer class="bg-gray-900 border-t border-gray-800 mt-20 py-12 px-6">
-                    <div class="max-w-6xl mx-auto grid md:grid-cols-3 gap-10">
-                        <div class="col-span-1">
-                            <h3 class="text-purple-400 font-bold mb-3">About Amanah</h3>
-                            <p class="text-sm text-gray-500 leading-relaxed">Privacy-first platform designed for matrimonial trust. We prevent uncontrolled forwarding and circulation of your personal images.</p>
-                        </div>
-                        <div>
-                            <h3 class="text-white font-bold mb-3">About the Founder</h3>
-                            <p class="text-sm text-gray-500 mb-4">Amanah is a founder-led initiative by Syed Rashad, committed to building trust-first products for families.</p>
-                            <a href="https://www.linkedin.com/in/syed-rashad/" target="_blank" class="inline-flex items-center px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white text-xs font-bold rounded transition-colors">
-                                <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zM8 19H5V8h3v11zM6.5 6.7c-1 0-1.8-.8-1.8-1.8s.8-1.8 1.8-1.8 1.8.8 1.8 1.8-.8 1.8-1.8 1.8zM19 19h-3v-5.6c0-1.3-.1-3-1.9-3-1.8 0-2.1 1.4-2.1 2.9V19h-3V8h2.9v1.5h.1c.4-.7 1.4-1.5 2.7-1.5 2.9 0 3.4 1.9 3.4 4.4V19z"/></svg>
-                                Connect on LinkedIn
-                            </a>
-                        </div>
-                        <div>
-                            <h3 class="text-white font-bold mb-3">Support</h3>
-                            <p class="text-sm text-gray-500">help.amanahapp@gmail.com</p>
-                            <p class="text-xs text-gray-700 mt-4">© 2025 Amanah by Syed Rashad</p>
-                        </div>
+            <footer class="bg-slate-900 border-t border-slate-800 mt-20 pt-16 pb-10">
+                <div class="max-w-6xl mx-auto px-4 grid md:grid-cols-3 gap-12 mb-16">
+                    <div>
+                        <h4 class="text-purple-400 font-bold mb-4">About Amanah</h4>
+                        <p class="text-sm text-slate-500 leading-relaxed">A secure, closed photo-sharing platform designed to prioritize trust and control. We ensure images reach only the intended recipient.</p>
                     </div>
-                </footer>
-            `;
+                    <div>
+                        <h4 class="text-white font-bold mb-4">About the Founder</h4>
+                        <p class="text-sm text-slate-500 mb-6">Amanah is a founder-led initiative by Syed Rashad, committed to building trust-first products.</p>
+                        <a href="https://linkedin.com" target="_blank" class="inline-flex items-center gap-2 bg-blue-600 px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-500 transition-colors">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                            Connect on LinkedIn
+                        </a>
+                    </div>
+                    <div>
+                        <h4 class="text-white font-bold mb-4">Support</h4>
+                        <p class="text-sm text-slate-500 mb-1">Support Email:</p>
+                        <p class="text-sm text-purple-400">help.amanahapp@gmail.com</p>
+                        <p class="text-[10px] text-slate-700 mt-10">© 2025 Amanah by Syed Rashad</p>
+                    </div>
+                </div>
+                <div class="text-center text-[10px] text-slate-700">أمانة - Trustworthy Protection</div>
+            </footer>`;
         }
 
-        // --- Mock Actions ---
-        function uploadAction() {
-            if(!state.termsAccepted) return alert("Accept terms");
-            state.otp = Math.floor(100000 + Math.random() * 900000);
-            state.shareLink = "https://amanah.app/view?id=temp_123";
-            nav('gallery');
-        }
-
-        async function manageAction() {
+        function processUpload() {
             state.loading = true; render();
-            // Simulate API call
+            // Simulating DB save
             setTimeout(() => {
                 state.loading = false;
-                state.otp = "988844";
-                state.shareLink = "https://amanah.app/view?id=album_abc";
-                nav('gallery');
-            }, 800);
+                state.shareLink = `https://syed786778.github.io/amanah_v2/?album=${Date.now()}`;
+                state.otp = Math.floor(100000 + Math.random() * 900000).toString();
+                navigate('management');
+            }, 1200);
         }
 
-        // Init
+        function render() {
+            const app = document.getElementById('app');
+            let content = '';
+            
+            if(state.loading) {
+                content = '<div class="pt-40 text-center font-bold animate-pulse">Creating Secure Album...</div>';
+            } else {
+                switch(state.view) {
+                    case 'home': content = renderHome(); break;
+                    case 'upload': content = renderUpload(); break;
+                    case 'management': content = renderManagement(); break;
+                }
+            }
+
+            app.innerHTML = renderHeader() + content + renderFooter();
+        }
+
         render();
     </script>
 </body>
