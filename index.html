@@ -7,6 +7,22 @@
     <title>Amanah - Secure Photo Sharing</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        blue: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
@@ -447,6 +463,8 @@
         }
         
         async function initializeApp() {
+            console.log('Initializing Amanah app...');
+            
             const urlParams = new URLSearchParams(window.location.search);
             const albumId = urlParams.get('album');
             
@@ -465,10 +483,15 @@
                 state.view = hash || 'home';
             }
             
+            console.log('Initial view:', state.view);
             render();
         }
 
-        document.addEventListener('DOMContentLoaded', initializeApp);
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeApp);
+        } else {
+            initializeApp();
+        }
 
     </script>
 </body>
@@ -677,9 +700,15 @@
         }
         
         function actionCard(title, icon, text, buttonText, action, badgeColor) {
+            const colorClasses = {
+                'blue': 'bg-blue-100',
+                'orange': 'bg-orange-100',
+                'green': 'bg-green-100'
+            };
+            
             return `
                 <div class="bg-white rounded-xl card-shadow card-shadow-hover p-8 border border-slate-200">
-                    <div class="feature-icon bg-${badgeColor}-100">
+                    <div class="feature-icon ${colorClasses[badgeColor] || 'bg-blue-100'}">
                         ${icon}
                     </div>
                     <h3 class="text-xl font-semibold text-slate-900 mb-3">${title}</h3>
