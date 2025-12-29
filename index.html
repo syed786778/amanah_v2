@@ -406,7 +406,14 @@
         }
 
         function render() {
+            console.log('Rendering view:', state.view);
             const app = document.getElementById('app');
+            
+            if (!app) {
+                console.error('App element not found!');
+                return;
+            }
+            
             let content = renderHeader();
 
             if (state.loading) {
@@ -442,7 +449,12 @@
                 }
             }
             
-            app.innerHTML = content;
+            try {
+                app.innerHTML = content;
+                console.log('Content rendered successfully');
+            } catch (error) {
+                console.error('Error rendering content:', error);
+            }
             
             if (state.showReportModal) {
                 app.insertAdjacentHTML('beforeend', renderReportModal());
@@ -646,7 +658,20 @@
         <p class="text-gray-300 text-center px-4">Screenshots are prohibited. You will be logged out shortly.</p>
     </div>
 
-    <div id="app"></div>
+    <div id="app">
+        <!-- Fallback content while JS loads -->
+        <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background-color: #f8fafc;">
+            <div style="text-align: center;">
+                <div style="display: inline-block; width: 50px; height: 50px; border: 3px solid #2563eb; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite;"></div>
+                <p style="margin-top: 1rem; color: #64748b; font-size: 14px;">Loading Amanah...</p>
+            </div>
+        </div>
+        <style>
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+        </style>
+    </div>
     
     <script>
         const SUPABASE_URL = 'https://imiljivxosyrcosznklh.supabase.co';
