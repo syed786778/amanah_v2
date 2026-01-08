@@ -1282,8 +1282,280 @@
             `;
         }
         
-        // Note: Due to character limits, I'll provide a download link for the complete code.
-        // Please save the entire artifact and test it in your browser.
+        function renderGalleryView() {
+            const isExpired = Date.now() > state.otpExpiry;
+            const timeRemaining = formatTime(state.otpExpiry);
+            
+            return `
+                <div class="max-w-5xl mx-auto px-4 pt-24 pb-16 min-h-screen">
+                    <div class="mb-8">
+                        <h2 class="text-3xl font-bold text-slate-900 mb-2">Album Controls</h2>
+                        <p class="text-slate-600">Owner: ${state.currentAlbum.name}</p>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-blue-50 to-white rounded-xl card-shadow p-6 mb-6 border border-blue-200">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-xl font-semibold text-slate-900">Share Details</h3>
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold ${isExpired ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}">
+                                ${isExpired ? '🔴 Expired' : '🟢 Active'}
+                            </span>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-2">Shareable Link</label>
+                                <div class="flex">
+                                    <input type="text" readonly value="${state.shareLink}" 
+                                        class="flex-1 px-4 py-2 bg-slate-50 border border-slate-300 rounded-l-lg text-sm font-mono text-slate-700">
+                                    <button onclick="copyLink()" 
+                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-r-lg font-medium transition-colors">
+                                        Copy
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-2">One-Time Passcode (OTP)</label>
+                                <div class="flex">
+                                    <input type="text" readonly value="${state.otp}" 
+                                        class="flex-1 px-4 py-2 bg-slate-50 border border-slate-300 rounded-l-lg text-2xl font-mono font-bold text-blue-600 tracking-widest text-center">
+                                    <button onclick="copyOtp()" 
+                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-r-lg font-medium transition-colors">
+                                        Copy
+                                    </button>
+                                </div>
+                                <p class="text-sm text-slate-600 mt-2">Valid for: <span class="font-semibold ${isExpired ? 'text-red-600' : 'text-green-600'}">${timeRemaining}</span></p>
+                            </div>
+                            
+                            <div class="flex gap-3 pt-2">
+                                <button onclick="copyText()" 
+                                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-medium transition-colors">
+                                    📋 Copy All Details
+                                </button>
+                                <button onclick="shareViaWhatsApp()" 
+                                    class="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium transition-colors">
+                                    📱 Share via WhatsApp
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl card-shadow p-6 mb-6 border border-slate-200">
+                        <h3 class="text-xl font-semibold text-slate-900 mb-4">OTP Management</h3>
+                        <div class="flex gap-3">
+                            <button onclick="regenOTP()" 
+                                class="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-3 px-4 rounded-lg font-medium transition-colors">
+                                🔄 Regenerate OTP
+                            </button>
+                            <button onclick="expireOTP()" 
+                                class="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-lg font-medium transition-colors">
+                                ⏱️ Expire OTP Now
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl card-shadow p-6 mb-6 border border-slate-200">
+                        <h3 class="text-xl font-semibold text-slate-900 mb-4">Access Logs</h3>
+                        <div id="access-logs-container">
+                            <button onclick="loadAccessLogs()" 
+                                class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-medium transition-colors">
+                                Load Access History
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl card-shadow p-6 mb-6 border border-slate-200">
+                        <h3 class="text-xl font-semibold text-slate-900 mb-4">Your Photos (${state.currentAlbum.photos.length})</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            ${state.currentAlbum.photos.map((photo, index) => `
+                                <div class="relative group">
+                                    <img src="${photo}" class="w-full h-40 object-cover rounded-lg border border-slate-200" alt="Album photo">
+                                    <button onclick="delPhoto(${index})" 
+                                        class="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center font-bold">
+                                        ×
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <button onclick="delAlbum()" 
+                        class="w-full bg-red-600 hover:bg-red-700 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-colors">
+                        🗑️ Delete Entire Album
+                    </button>
+                </div>
+            `;
+        }
+        
+        function renderViewView() {
+            if (state.lightboxIndex !== null) {
+                const photo = state.currentAlbum.photos[state.lightboxIndex];
+                const watermark = state.viewerName || 'Amanah Secured';
+                
+                return `
+                    <div class="fixed inset-0 bg-black bg-opacity-95 z-50 flex items-center justify-center p-4" onclick="closeLightbox()">
+                        <button onclick="closeLightbox()" class="absolute top-4 right-4 text-white text-4xl font-bold hover:text-red-500 transition-colors z-10">×</button>
+                        
+                        <button onclick="event.stopPropagation(); prevPhoto();" 
+                            class="absolute left-4 text-white text-5xl font-bold hover:text-blue-400 transition-colors z-10 ${state.lightboxIndex === 0 ? 'opacity-30 cursor-not-allowed' : ''}" 
+                            ${state.lightboxIndex === 0 ? 'disabled' : ''}>‹</button>
+                        
+                        <button onclick="event.stopPropagation(); nextPhoto();" 
+                            class="absolute right-4 text-white text-5xl font-bold hover:text-blue-400 transition-colors z-10 ${state.lightboxIndex === state.currentAlbum.photos.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" 
+                            ${state.lightboxIndex === state.currentAlbum.photos.length - 1 ? 'disabled' : ''}>›</button>
+                        
+                        <div class="max-w-6xl max-h-full flex items-center justify-center" onclick="event.stopPropagation()">
+                            <canvas id="secure-photo-${state.lightboxIndex}" class="rounded-lg shadow-2xl"></canvas>
+                        </div>
+                        
+                        <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-white text-sm bg-black bg-opacity-50 px-4 py-2 rounded-full">
+                            ${state.lightboxIndex + 1} / ${state.currentAlbum.photos.length}
+                        </div>
+                    </div>
+                    <script>
+                        setTimeout(() => {
+                            drawPhotoOnCanvas('secure-photo-${state.lightboxIndex}', '${photo}', '${watermark}', true);
+                        }, 50);
+                    </script>
+                `;
+            }
+            
+            return `
+                <div class="max-w-5xl mx-auto px-4 pt-24 pb-16 min-h-screen">
+                    <div class="bg-gradient-to-br from-green-50 to-white rounded-xl card-shadow p-6 mb-6 border border-green-200">
+                        <div class="flex items-center mb-2">
+                            <svg class="w-6 h-6 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <h2 class="text-2xl font-bold text-slate-900">Access Granted</h2>
+                        </div>
+                        <p class="text-slate-700">Viewing album shared by: <span class="font-semibold">${state.currentAlbum.name}</span></p>
+                        <p class="text-sm text-slate-600 mt-2">⚠️ Screenshots and screen recording are prohibited. Your access is being monitored.</p>
+                    </div>
+
+                    <div class="bg-white rounded-xl card-shadow p-6 border border-slate-200">
+                        <h3 class="text-xl font-semibold text-slate-900 mb-4">Protected Photos (${state.currentAlbum.photos.length})</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            ${state.currentAlbum.photos.map((photo, index) => `
+                                <div class="cursor-pointer viewer-thumbnail card-shadow-hover rounded-lg overflow-hidden" 
+                                     onclick="openLightbox(${index})">
+                                    <canvas id="thumb-${index}" class="w-full h-full"></canvas>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="mt-6 bg-red-50 border border-red-200 rounded-xl p-4">
+                        <p class="text-sm text-red-800 font-medium">🔒 Security Notice</p>
+                        <p class="text-xs text-red-700 mt-1">Photos are watermarked and protected. Any attempt to capture these images will result in immediate logout and legal action.</p>
+                    </div>
+                </div>
+                <script>
+                    setTimeout(() => {
+                        ${state.currentAlbum.photos.map((photo, index) => 
+                            `drawPhotoOnCanvas('thumb-${index}', '${photo}', '${state.viewerName || 'Amanah Secured'}');`
+                        ).join('\n')}
+                    }, 100);
+                </script>
+            `;
+        }
+        
+        function renderTermsView() {
+            return `
+                <div class="max-w-4xl mx-auto px-4 pt-24 pb-16 min-h-screen">
+                    <div class="bg-white rounded-xl card-shadow p-10 border border-slate-200">
+                        <h2 class="text-3xl font-bold text-slate-900 mb-6">Terms & Conditions</h2>
+                        
+                        <div class="space-y-6 text-slate-700 leading-relaxed">
+                            <section>
+                                <h3 class="text-xl font-semibold text-slate-900 mb-3">1. Acceptance of Terms</h3>
+                                <p>By using Amanah, you agree to these Terms & Conditions. If you do not agree, you must not use this service.</p>
+                            </section>
+
+                            <section>
+                                <h3 class="text-xl font-semibold text-slate-900 mb-3">2. Intended Use</h3>
+                                <p>Amanah is designed exclusively for sharing matrimonial profile photos in a secure, privacy-respecting manner. Users must not upload illegal, obscene, or copyrighted content they do not own.</p>
+                            </section>
+
+                            <section>
+                                <h3 class="text-xl font-semibold text-slate-900 mb-3">3. User Responsibilities</h3>
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li>You are responsible for maintaining the confidentiality of your OTP and album credentials</li>
+                                    <li>You must not share OTPs with unauthorized individuals</li>
+                                    <li>You agree to use photos only for the intended matrimonial evaluation purpose</li>
+                                    <li>You must not attempt to screenshot, record, or reproduce photos by any means</li>
+                                </ul>
+                            </section>
+
+                            <section>
+                                <h3 class="text-xl font-semibold text-slate-900 mb-3">4. Prohibited Actions</h3>
+                                <p class="font-semibold text-red-700 mb-2">The following actions are strictly prohibited and may result in legal consequences:</p>
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li>Taking screenshots or screen recordings of protected photos</li>
+                                    <li>Sharing, forwarding, or distributing photos beyond intended recipients</li>
+                                    <li>Attempting to bypass security measures or download photos</li>
+                                    <li>Using photos for commercial purposes or non-matrimonial use</li>
+                                    <li>Reverse engineering or tampering with the platform's security</li>
+                                </ul>
+                            </section>
+
+                            <section>
+                                <h3 class="text-xl font-semibold text-slate-900 mb-3">5. Privacy & Data Collection</h3>
+                                <p>We collect minimal data necessary for service operation:</p>
+                                <ul class="list-disc ml-6 space-y-2 mt-2">
+                                    <li>Uploader name and email (for album management)</li>
+                                    <li>Viewer name and access timestamp (for security logs)</li>
+                                    <li>Photo data (stored securely, deleted upon album deletion)</li>
+                                </ul>
+                                <p class="mt-2">We do not sell or share your data with third parties.</p>
+                            </section>
+
+                            <section>
+                                <h3 class="text-xl font-semibold text-slate-900 mb-3">6. Copyright & Ownership</h3>
+                                <p>You retain full ownership of uploaded photos. By uploading, you grant Amanah a limited license to display photos to authorized viewers only.</p>
+                            </section>
+
+                            <section>
+                                <h3 class="text-xl font-semibold text-slate-900 mb-3">7. Security Measures</h3>
+                                <p>Amanah implements multiple security layers including OTP authentication, watermarking, screenshot detection, and access logging. However, no system is 100% secure. Users share responsibility for maintaining confidentiality.</p>
+                            </section>
+
+                            <section>
+                                <h3 class="text-xl font-semibold text-slate-900 mb-3">8. Legal Action</h3>
+                                <p class="font-semibold text-red-700">Unauthorized reproduction or distribution of photos may result in:</p>
+                                <ul class="list-disc ml-6 space-y-2 mt-2">
+                                    <li>Civil liability under privacy and copyright laws</li>
+                                    <li>Criminal prosecution under IT Act 2000 (India) and equivalent laws</li>
+                                    <li>Damages for emotional distress and reputational harm</li>
+                                </ul>
+                                <p class="mt-2">All violations are logged with timestamp and user identification for legal proceedings.</p>
+                            </section>
+
+                            <section>
+                                <h3 class="text-xl font-semibold text-slate-900 mb-3">9. Service Availability</h3>
+                                <p>Amanah is provided "as is" without warranty. We reserve the right to modify, suspend, or terminate the service at any time without notice.</p>
+                            </section>
+
+                            <section>
+                                <h3 class="text-xl font-semibold text-slate-900 mb-3">10. Dispute Resolution</h3>
+                                <p>Any disputes arising from use of Amanah shall be governed by Indian law and subject to the exclusive jurisdiction of courts in Bangalore, India.</p>
+                            </section>
+
+                            <section>
+                                <h3 class="text-xl font-semibold text-slate-900 mb-3">11. Contact</h3>
+                                <p>For questions or concerns regarding these Terms, contact us at: <a href="mailto:support@picamanah.space" class="text-blue-600 hover:underline">support@picamanah.space</a></p>
+                            </section>
+
+                            <div class="bg-blue-50 border-l-4 border-blue-600 p-5 rounded-r-xl mt-8">
+                                <p class="text-sm font-medium text-blue-900">Last Updated: January 2025</p>
+                                <p class="text-sm text-blue-800 mt-2">By using Amanah, you acknowledge that you have read, understood, and agree to be bound by these Terms & Conditions.</p>
+                            </div>
+                        </div>
+                    </div>
+                    ${renderFooter()}
+                </div>
+            `;
+        }
         
         function render() {
             const app = document.getElementById('app');
@@ -1308,12 +1580,29 @@
                     case 'viewer': 
                         content += renderViewerInputView();
                         break;
+                    case 'gallery':
+                        content += renderGalleryView();
+                        break;
+                    case 'view':
+                        content += renderViewView();
+                        break;
+                    case 'terms':
+                        content += renderTermsView();
+                        break;
                     default:
                         content += renderHomeView();
                 }
             }
             
             app.innerHTML = content;
+            
+            // Re-render lightbox if active
+            if (state.view === 'view' && state.lightboxIndex !== null) {
+                const lightboxHtml = renderViewView();
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = lightboxHtml;
+                document.body.appendChild(tempDiv.firstElementChild);
+            }
         }
         
         function initializeApp() {
